@@ -1,0 +1,200 @@
+package com.nuvio.tv.ui.components
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateIntOffsetAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Card
+import androidx.tv.material3.CardDefaults
+import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Text
+import com.jojotv.home.R
+import com.nuvio.tv.ui.theme.NuvioColors
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
+
+private val NavItemShape = RoundedCornerShape(14.dp)
+private val NavItemIconShape = RoundedCornerShape(10.dp)
+
+data class SidebarItem(
+    val route: String,
+    val label: String,
+    val icon: ImageVector
+)
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun SidebarNavigation(
+    items: List<SidebarItem>,
+    selectedRoute: String?,
+    isExpanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    focusRequester: FocusRequester,
+    onFocusChange: (Boolean) -> Unit,
+    onNavigate: (String) -> Unit
+) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val sidebarWidthPx = remember(density) { with(density) { 260.dp.roundToPx() } }
+    val collapsedOffset = remember(sidebarWidthPx) { IntOffset(-sidebarWidthPx, 0) }
+    val offsetX by animateIntOffsetAsState(
+        targetValue = if (isExpanded) IntOffset.Zero else collapsedOffset,
+        label = "sidebarOffset"
+    )
+
+    val itemFocusRequesters = remember(items.size) { List(items.size) { FocusRequester() } }
+    var focusedIndex by remember { mutableStateOf(0) }
+
+    Column(
+        modifier = Modifier
+            .offset { offsetX }
+            .width(260.dp)
+            .fillMaxHeight()
+            .background(NuvioColors.BackgroundElevated)
+            .padding(vertical = 24.dp, horizontal = 16.dp)
+            .onFocusChanged { state ->
+                onFocusChange(state.hasFocus)
+                onExpandedChange(state.hasFocus)
+            }
+            .onKeyEvent { event ->
+                if (event.nativeKeyEvent.action == android.view.KeyEvent.ACTION_DOWN) {
+                    when (event.nativeKeyEvent.keyCode) {
+                        android.view.KeyEvent.KEYCODE_DPAD_UP -> {
+                            val prev = (focusedIndex - 1 + items.size) % items.size
+                            itemFocusRequesters.getOrNull(prev)?.requestFocus()
+                            true
+                        }
+                        android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
+                            val next = (focusedIndex + 1) % items.size
+                            itemFocusRequesters.getOrNull(next)?.requestFocus()
+                            true
+                        }
+                        else -> false
+                    }
+                } else false
+            },
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.app_name).uppercase(),
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            color = NuvioColors.Primary
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        items.forEachIndexed { index, item ->
+            SidebarNavItem(
+                item = item,
+                isSelected = item.route == selectedRoute,
+                focusRequester = if (item.route == selectedRoute) focusRequester else itemFocusRequesters[index],
+                onFocused = { focusedIndex = index },
+                onNavigate = onNavigate
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun SidebarNavItem(
+    item: SidebarItem,
+    isSelected: Boolean,
+    focusRequester: FocusRequester?,
+    onFocused: () -> Unit = {},
+    onNavigate: (String) -> Unit
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val backgroundColor by animateColorAsState(
+        targetValue = if (isFocused || isSelected) NuvioColors.FocusBackground else Color.Transparent,
+        label = "navItemBackground"
+    )
+    val borderColor by animateColorAsState(
+        targetValue = if (isFocused) NuvioColors.FocusRing else Color.Transparent,
+        label = "navItemBorder"
+    )
+
+    Card(
+        onClick = { onNavigate(item.route) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .border(2.dp, borderColor, NavItemShape)
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .onFocusChanged { state ->
+                isFocused = state.hasFocus
+                if (state.hasFocus) onFocused()
+            },
+        colors = CardDefaults.colors(
+            containerColor = backgroundColor,
+            focusedContainerColor = backgroundColor
+        ),
+        border = CardDefaults.border(
+            border = androidx.tv.material3.Border.None,
+            focusedBorder = androidx.tv.material3.Border.None
+        ),
+        shape = CardDefaults.shape(shape = NavItemShape)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(NavItemIconShape)
+                    .background(NuvioColors.SurfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = item.icon,
+                    contentDescription = item.label,
+                    tint = NuvioColors.TextPrimary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Text(
+                text = item.label,
+                style = MaterialTheme.typography.titleMedium,
+                color = if (isFocused || isSelected) NuvioColors.TextPrimary else NuvioColors.TextSecondary
+            )
+        }
+    }
+}

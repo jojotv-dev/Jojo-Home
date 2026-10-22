@@ -1,0 +1,36 @@
+[
+  {
+    "id": "demo-east-of-eden",
+    "title": "East of Eden",
+    "type": "series",
+    "genre": "Drame",
+    "year": "2026",
+    "durationMinutes": 68,
+    "positionSeconds": 780,
+    "episode": "S01E01",
+    "cast": ["Florence Pugh", "Christopher Abbott", "Mike Faist"],
+    "description": "Au début du 20e siècle, une femme d’une indépendance farouche provoque une rupture entre deux frères, lançant une saga qui va s’étendre sur deux générations.",
+    "favorite": true,
+    "demo": true
+  },
+  {
+    "id": "demo-videos",
+    "title": "Vos vidéos",
+    "type": "videos",
+    "genre": "Vidéo de démonstration",
+    "durationMinutes": 81,
+    "positionSeconds": 600,
+    "description": "Une fiche d’exemple pour découvrir la présentation des vidéos, le synopsis, les favoris et les reprises. Ajoutez vos fichiers pour utiliser le lecteur.",
+    "demo": true
+  },
+  {
+    "id": "demo-movies",
+    "title": "Vos films",
+    "type": "movies",
+    "genre": "Film de démonstration",
+    "durationMinutes": 108,
+    "positionSeconds": 300,
+    "description": "Une fiche d’exemple pour découvrir la présentation des films et leur durée en heures et minutes.",
+    "demo": true
+  }
+]

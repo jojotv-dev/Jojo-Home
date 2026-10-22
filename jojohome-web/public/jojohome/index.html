@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="description" content="JojoHome : votre accueil, vos vidéos, films, séries et télévision.">
+  <title>JojoHome</title>
+  <link rel="icon" href="./assets/jojo-home.png">
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Aller au contenu</a>
+  <header class="top-bar">
+    <nav class="header-navigation" aria-label="Navigation principale">
+      <button class="header-command home-command active" data-page="home" aria-label="JojoHome · Accueil" aria-current="page">
+        <span class="home-mark"><img src="./assets/jojo-home.png" alt=""></span><span>Accueil</span>
+      </button>
+      <button class="header-command" id="account-button" aria-haspopup="dialog">
+        <span class="profile-avatar" id="header-avatar" aria-hidden="true">M</span><span>Compte</span>
+      </button>
+      <button class="header-command" id="settings-button" aria-label="Paramètres" aria-haspopup="dialog">
+        <span class="icon" style="--icon:url('./assets/settings.svg')" aria-hidden="true"></span><span>Paramètres</span>
+      </button>
+      <button class="header-command" id="apps-button" aria-label="Apps" aria-haspopup="dialog">
+        <span class="icon" style="--icon:url('./assets/apps.png')" aria-hidden="true"></span><span>Apps</span>
+      </button>
+      <button class="header-command" data-page="live" aria-label="IPTV">
+        <span class="icon" style="--icon:url('./assets/iptv.svg')" aria-hidden="true"></span><span>IPTV</span>
+      </button>
+      <button class="header-command" id="search-button" aria-label="Rechercher" aria-haspopup="dialog">
+        <span class="icon" style="--icon:url('./assets/search.svg')" aria-hidden="true"></span><span>Rechercher</span>
+      </button>
+    </nav>
+    <div class="header-status">
+      <button class="weather" id="weather-button" aria-label="Météo" aria-haspopup="dialog"><span class="icon" style="--icon:url('./assets/cloud.svg')" aria-hidden="true"></span><span id="temperature">—°</span></button>
+      <div class="date-time"><time id="clock"></time><span id="date"></span></div>
+    </div>
+  </header>
+
+  <section class="nas-connection" aria-label="Connexion et données NAS">
+    <div><p id="nas-status" role="status">Connexion au Companion NAS…</p><small id="nas-provider-count"></small></div>
+    <div class="nas-actions"><button class="soft-button" id="nas-connect">Connecter le compte NAS</button><button class="soft-button" id="nas-refresh" hidden>Actualiser</button><button class="soft-button" id="companion-button">Gestion NAS</button></div>
+    <label id="nas-tv-row" for="nas-tv" hidden>TV pour les catalogues JojoHome <select id="nas-tv"><option value="">Choisir une TV</option></select></label>
+  </section>
+
+  <main id="main" tabindex="-1">
+    <section id="home-page" class="page" aria-label="Accueil">
+      <section id="hero" class="hero" aria-label="Continuer à regarder" hidden>
+        <img id="hero-artwork" class="hero-artwork" alt="">
+        <div class="hero-shade"></div>
+        <div class="hero-copy">
+          <h1 id="hero-title"></h1><p id="hero-meta" class="hero-meta"></p><p id="hero-cast" class="hero-cast"></p>
+          <span id="hero-episode" class="episode" hidden></span><p id="hero-description" class="hero-description"></p>
+          <div class="hero-actions"><button id="hero-play" class="watch-button"><span class="icon" style="--icon:url('./assets/play.svg')" aria-hidden="true"></span><span>Reprendre</span></button><span id="hero-remaining" class="remaining"></span></div>
+          <progress id="hero-progress" max="1" aria-label="Progression de lecture" hidden></progress>
+        </div>
+        <div class="hero-pagination"><button id="hero-previous" class="carousel-arrow" aria-label="Titre précédent">‹</button><div id="hero-dots" class="hero-dots" role="group" aria-label="Titres à reprendre"></div><button id="hero-next" class="carousel-arrow" aria-label="Titre suivant">›</button></div>
+      </section>
+      <section id="suggestions" class="suggestions" aria-labelledby="suggestions-title">
+        <h1 id="suggestions-title">Suggestions pour vous</h1>
+        <div class="suggestion-headings"><span><span class="icon" style="--icon:url('./assets/play.svg')" aria-hidden="true"></span>Vidéos</span><span><span class="icon" style="--icon:url('./assets/videos.svg')" aria-hidden="true"></span>Films</span><span><span class="icon" style="--icon:url('./assets/series.svg')" aria-hidden="true"></span>Séries</span></div>
+        <div id="suggestion-grid" class="suggestion-grid"></div>
+      </section>
+      <nav class="categories" aria-label="Catégories">
+        <button data-page="videos"><span class="icon" style="--icon:url('./assets/videos.svg')" aria-hidden="true"></span><span>Vidéos</span></button>
+        <button data-page="movies"><span class="icon" style="--icon:url('./assets/movies.png')" aria-hidden="true"></span><span>Films</span></button>
+        <button data-page="series"><span class="icon" style="--icon:url('./assets/series.svg')" aria-hidden="true"></span><span>Séries</span></button>
+        <button data-page="live"><span class="icon" style="--icon:url('./assets/tv.svg')" aria-hidden="true"></span><span>TV</span></button>
+      </nav>
+    </section>
+
+    <section id="library-page" class="page library-page" hidden aria-labelledby="library-title">
+      <header class="library-header"><div><p class="eyebrow" id="library-profile">JojoHome</p><h1 id="library-title">Vidéos</h1></div><div class="library-actions"><button class="soft-button" id="favorites-filter" aria-pressed="false">Favoris</button><button class="soft-button" id="import-library">Importer un catalogue</button><button class="soft-button" id="add-video">Choisir des vidéos</button></div></header>
+      <label class="visually-hidden" for="library-search">Rechercher dans la bibliothèque</label><input class="library-search" id="library-search" type="search" placeholder="Rechercher un titre…" autocomplete="off">
+      <div id="catalog-controls" class="catalog-controls" hidden><label for="provider-select">Fournisseur<select id="provider-select"><option value="">Favoris et reprises du compte</option></select></label><label id="group-control" for="group-select" hidden>Groupe<select id="group-select"></select></label><button class="soft-button" id="manage-providers">Gérer les fournisseurs</button><p id="catalog-status" class="muted" role="status"></p></div>
+      <p id="library-count" class="muted" role="status"></p><div id="media-grid" class="media-grid"></div>
+      <button class="soft-button catalog-more" id="catalog-more" hidden>Charger la suite</button>
+      <div id="empty-library" class="empty-library" hidden><span class="icon" style="--icon:url('./assets/videos.svg')" aria-hidden="true"></span><h2>Aucun titre pour le moment</h2><p>Choisissez vos vidéos ou importez un catalogue pour retrouver vos titres ici.</p></div>
+    </section>
+  </main>
+
+  <dialog id="accounts-dialog" aria-labelledby="accounts-title"><div class="dialog-heading"><h2 id="accounts-title">Comptes JojoHome</h2><button class="close-button" data-close="accounts-dialog" aria-label="Fermer les comptes">×</button></div><p id="nas-account-email" class="muted"></p><form id="nas-login" class="compact-form"><p>Connectez-vous avec le même compte NAS que sur le Companion.</p><label for="nas-email">E-mail du compte NAS</label><input id="nas-email" type="email" autocomplete="username" required><label for="nas-password">Mot de passe NAS</label><input id="nas-password" type="password" autocomplete="current-password" required><button class="primary-button" id="nas-login-button" type="submit">Se connecter au NAS</button><p id="nas-login-status" role="status"></p></form><div id="profile-list" class="profile-list"></div><div class="detail-actions"><button class="soft-button" id="manage-accounts" hidden>Gérer les comptes NAS</button><button class="soft-button" id="nas-logout" hidden>Déconnecter le NAS</button></div><details id="local-account-section"><summary>Bibliothèque locale de ce navigateur</summary><form id="profile-form" class="compact-form"><label for="profile-name">Nouveau compte local</label><div class="form-row"><input id="profile-name" maxlength="40" placeholder="Nom du compte" required><button class="primary-button" type="submit">Ajouter</button></div></form><p class="muted">Les imports locaux restent dans ce navigateur.</p></details></dialog>
+
+  <dialog id="settings-dialog" aria-labelledby="settings-title"><div class="dialog-heading"><h2 id="settings-title">Paramètres</h2><button class="close-button" data-close="settings-dialog" aria-label="Fermer les paramètres">×</button></div><form id="settings-form" class="compact-form"><label for="theme-color">Couleur des commandes</label><select id="theme-color"><option value="gold">Jaune moutarde</option><option value="blue">Bleu sombre</option><option value="teal">Turquoise</option><option value="violet">Violet profond</option></select><label for="hero-size">Taille du visuel de reprise</label><select id="hero-size"><option value="small">Petit</option><option value="medium">Moyen</option><option value="large">Grand</option></select><button class="primary-button" type="submit">Enregistrer</button></form><div class="settings-actions"><button class="soft-button" id="settings-import">Importer un catalogue</button><button class="soft-button" id="example-button">Afficher l’exemple</button></div><p class="muted">L’exemple présente des fiches de démonstration. Vos fichiers vidéo restent sur votre appareil.</p></dialog>
+
+  <dialog id="apps-dialog" aria-labelledby="apps-title"><div class="dialog-heading"><h2 id="apps-title">Apps</h2><button class="close-button" data-close="apps-dialog" aria-label="Fermer les applications">×</button></div><div id="web-apps" class="web-apps"></div><form id="web-app-form" class="compact-form"><label for="web-app-name">Nom</label><input id="web-app-name" maxlength="50" required><label for="web-app-url">Adresse web</label><input id="web-app-url" type="url" placeholder="https://…" required><button class="primary-button" type="submit">Ajouter un raccourci</button></form><p class="muted">Les raccourcis ouvrent vos applications web. Les applications Android s’utilisent sur la TV.</p></dialog>
+
+  <dialog id="search-dialog" aria-labelledby="search-title"><div class="dialog-heading"><h2 id="search-title">Rechercher</h2><button class="close-button" data-close="search-dialog" aria-label="Fermer la recherche">×</button></div><label class="visually-hidden" for="global-search">Rechercher un titre</label><input id="global-search" type="search" placeholder="Film, série, vidéo ou chaîne…" autocomplete="off"><div id="search-results" class="search-results" aria-live="polite"></div></dialog>
+
+  <dialog id="weather-dialog" aria-labelledby="weather-title"><div class="dialog-heading"><h2 id="weather-title">Météo</h2><button class="close-button" data-close="weather-dialog" aria-label="Fermer la météo">×</button></div><p class="muted">Aucune source météo n’est configurée pour cet accueil.</p></dialog>
+
+  <dialog id="details-dialog" class="details-dialog" aria-labelledby="detail-title"><div class="dialog-heading"><h2 id="detail-title"></h2><button class="close-button" data-close="details-dialog" aria-label="Fermer la fiche">×</button></div><div class="detail-layout"><img id="detail-artwork" alt=""><div><p id="detail-meta" class="muted"></p><p id="detail-description"></p><p id="detail-cast"></p><p id="detail-director"></p><p id="detail-source" class="muted"></p><div class="detail-actions"><button class="primary-button" id="detail-play"><span class="icon" style="--icon:url('./assets/play.svg')" aria-hidden="true"></span>Lire</button><button class="soft-button" id="detail-favorite" aria-pressed="false">Ajouter aux favoris</button></div><div id="episode-list" class="episode-list" hidden role="status"></div></div></div></dialog>
+
+  <dialog id="companion-dialog" class="companion-dialog" aria-labelledby="companion-title"><div class="dialog-heading"><h2 id="companion-title">Gestion NAS · Companion</h2><button class="close-button" data-close="companion-dialog" aria-label="Fermer la gestion NAS">×</button></div><iframe id="companion-frame" title="Comptes, IPTV, Free TV et maintenance du NAS"></iframe></dialog>
+
+  <dialog id="player-dialog" class="player-dialog" aria-labelledby="player-title"><div class="dialog-heading"><h2 id="player-title"></h2><button class="close-button" data-close="player-dialog" aria-label="Fermer le lecteur">×</button></div><video id="player" controls playsinline preload="metadata"></video><p id="player-status" role="status"></p></dialog>
+
+  <input id="catalog-file" type="file" accept="application/json,.json" hidden><input id="video-files" type="file" accept="video/*" multiple hidden>
+  <p id="notice" class="notice" role="status" hidden></p>
+</body>
+</html>

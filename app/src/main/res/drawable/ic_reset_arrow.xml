@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Counter-clockwise restore arrow; menu tint is applied by the caller. -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M7.1,8.5L4.3,5.7V11h5.3L7.8,9.2C8.9,7.9 10.4,7 12,7c3.3,0 6,2.7 6,6s-2.7,6 -6,6c-2.6,0 -4.8,-1.7 -5.6,-4H4.3c0.9,3.5 4,6 7.7,6c4.4,0 8,-3.6 8,-8s-3.6,-8 -8,-8C10.1,5 8.4,6.3 7.1,8.5z"/>
+</vector>

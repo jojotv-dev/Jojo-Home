@@ -1,0 +1,1 @@
+import{n as e,t}from"./create-player-BPFwQVOQ.js";import{t as n}from"./safe-define-DXxmf7BV.js";const{PlayerElement:r,PlayerController:i}=t({features:e});var a=class extends r{static{this.tagName=`audio-player`}};n(a);

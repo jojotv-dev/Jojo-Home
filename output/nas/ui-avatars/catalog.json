@@ -1,0 +1,1127 @@
+{
+  "version": 1,
+  "groups": [
+    {
+      "id": "avatar",
+      "name": "Avatar"
+    },
+    {
+      "id": "smileys",
+      "name": "Smileys"
+    },
+    {
+      "id": "famille",
+      "name": "Famille"
+    },
+    {
+      "id": "animaux",
+      "name": "Animaux"
+    }
+  ],
+  "avatars": [
+    {
+      "id": "initial:theme-0",
+      "group": "avatar",
+      "name": "Bleu sombre",
+      "color": "#202F52"
+    },
+    {
+      "id": "initial:theme-1",
+      "group": "avatar",
+      "name": "Gris foncé",
+      "color": "#393F49"
+    },
+    {
+      "id": "initial:theme-2",
+      "group": "avatar",
+      "name": "Vert minéral",
+      "color": "#2E7D32"
+    },
+    {
+      "id": "initial:theme-3",
+      "group": "avatar",
+      "name": "Rouge pétant",
+      "color": "#DC3F3F"
+    },
+    {
+      "id": "initial:theme-4",
+      "group": "avatar",
+      "name": "Jaune moutarde",
+      "color": "#D3A033"
+    },
+    {
+      "id": "initial:theme-5",
+      "group": "avatar",
+      "name": "Turquoise",
+      "color": "#009999"
+    },
+    {
+      "id": "initial:theme-6",
+      "group": "avatar",
+      "name": "Violet profond",
+      "color": "#673AB7"
+    },
+    {
+      "id": "initial:theme-7",
+      "group": "avatar",
+      "name": "Orange brûlé",
+      "color": "#C45F20"
+    },
+    {
+      "id": "initial:theme-8",
+      "group": "avatar",
+      "name": "Bleu acier",
+      "color": "#4A6996"
+    },
+    {
+      "id": "initial:theme-9",
+      "group": "avatar",
+      "name": "Gris clair",
+      "color": "#BDBDBD"
+    },
+    {
+      "id": "initial:theme-10",
+      "group": "avatar",
+      "name": "Rose",
+      "color": "#F06292"
+    },
+    {
+      "id": "initial:theme-11",
+      "group": "avatar",
+      "name": "Indigo",
+      "color": "#3F51B5"
+    },
+    {
+      "id": "initial:theme-12",
+      "group": "avatar",
+      "name": "Bleu",
+      "color": "#2196F3"
+    },
+    {
+      "id": "initial:theme-13",
+      "group": "avatar",
+      "name": "Cyan",
+      "color": "#00BCD4"
+    },
+    {
+      "id": "initial:theme-14",
+      "group": "avatar",
+      "name": "Sarcelle",
+      "color": "#009688"
+    },
+    {
+      "id": "initial:theme-15",
+      "group": "avatar",
+      "name": "Vert",
+      "color": "#4CAF50"
+    },
+    {
+      "id": "initial:theme-16",
+      "group": "avatar",
+      "name": "Citron",
+      "color": "#CDDC39"
+    },
+    {
+      "id": "initial:theme-17",
+      "group": "avatar",
+      "name": "Jaune",
+      "color": "#FFEB3B"
+    },
+    {
+      "id": "initial:theme-18",
+      "group": "avatar",
+      "name": "Blanc",
+      "color": "#FFFFFF"
+    },
+    {
+      "id": "initial:theme-19",
+      "group": "avatar",
+      "name": "Noir",
+      "color": "#08080A"
+    },
+    {
+      "id": "initial:theme-20",
+      "group": "avatar",
+      "name": "Noir AMOLED",
+      "color": "#000000"
+    },
+    {
+      "id": "emoji:😀",
+      "group": "smileys",
+      "name": "😀",
+      "emoji": "😀"
+    },
+    {
+      "id": "emoji:😃",
+      "group": "smileys",
+      "name": "😃",
+      "emoji": "😃"
+    },
+    {
+      "id": "emoji:😄",
+      "group": "smileys",
+      "name": "😄",
+      "emoji": "😄"
+    },
+    {
+      "id": "emoji:😁",
+      "group": "smileys",
+      "name": "😁",
+      "emoji": "😁"
+    },
+    {
+      "id": "emoji:😆",
+      "group": "smileys",
+      "name": "😆",
+      "emoji": "😆"
+    },
+    {
+      "id": "emoji:😅",
+      "group": "smileys",
+      "name": "😅",
+      "emoji": "😅"
+    },
+    {
+      "id": "emoji:😂",
+      "group": "smileys",
+      "name": "😂",
+      "emoji": "😂"
+    },
+    {
+      "id": "emoji:🙂",
+      "group": "smileys",
+      "name": "🙂",
+      "emoji": "🙂"
+    },
+    {
+      "id": "emoji:🙃",
+      "group": "smileys",
+      "name": "🙃",
+      "emoji": "🙃"
+    },
+    {
+      "id": "emoji:😉",
+      "group": "smileys",
+      "name": "😉",
+      "emoji": "😉"
+    },
+    {
+      "id": "emoji:😊",
+      "group": "smileys",
+      "name": "😊",
+      "emoji": "😊"
+    },
+    {
+      "id": "emoji:😍",
+      "group": "smileys",
+      "name": "😍",
+      "emoji": "😍"
+    },
+    {
+      "id": "emoji:🥰",
+      "group": "smileys",
+      "name": "🥰",
+      "emoji": "🥰"
+    },
+    {
+      "id": "emoji:😘",
+      "group": "smileys",
+      "name": "😘",
+      "emoji": "😘"
+    },
+    {
+      "id": "emoji:😎",
+      "group": "smileys",
+      "name": "😎",
+      "emoji": "😎"
+    },
+    {
+      "id": "emoji:🤓",
+      "group": "smileys",
+      "name": "🤓",
+      "emoji": "🤓"
+    },
+    {
+      "id": "emoji:🥳",
+      "group": "smileys",
+      "name": "🥳",
+      "emoji": "🥳"
+    },
+    {
+      "id": "emoji:🤩",
+      "group": "smileys",
+      "name": "🤩",
+      "emoji": "🤩"
+    },
+    {
+      "id": "emoji:😇",
+      "group": "smileys",
+      "name": "😇",
+      "emoji": "😇"
+    },
+    {
+      "id": "emoji:🤠",
+      "group": "smileys",
+      "name": "🤠",
+      "emoji": "🤠"
+    },
+    {
+      "id": "emoji:🥸",
+      "group": "smileys",
+      "name": "🥸",
+      "emoji": "🥸"
+    },
+    {
+      "id": "emoji:🤗",
+      "group": "smileys",
+      "name": "🤗",
+      "emoji": "🤗"
+    },
+    {
+      "id": "emoji:😴",
+      "group": "smileys",
+      "name": "😴",
+      "emoji": "😴"
+    },
+    {
+      "id": "emoji:🤔",
+      "group": "smileys",
+      "name": "🤔",
+      "emoji": "🤔"
+    },
+    {
+      "id": "emoji:👨",
+      "group": "smileys",
+      "name": "👨",
+      "emoji": "👨"
+    },
+    {
+      "id": "emoji:👩",
+      "group": "smileys",
+      "name": "👩",
+      "emoji": "👩"
+    },
+    {
+      "id": "emoji:👦",
+      "group": "smileys",
+      "name": "👦",
+      "emoji": "👦"
+    },
+    {
+      "id": "emoji:👧",
+      "group": "smileys",
+      "name": "👧",
+      "emoji": "👧"
+    },
+    {
+      "id": "emoji:👨🏻",
+      "group": "smileys",
+      "name": "👨🏻",
+      "emoji": "👨🏻"
+    },
+    {
+      "id": "emoji:👩🏻",
+      "group": "smileys",
+      "name": "👩🏻",
+      "emoji": "👩🏻"
+    },
+    {
+      "id": "emoji:👦🏻",
+      "group": "smileys",
+      "name": "👦🏻",
+      "emoji": "👦🏻"
+    },
+    {
+      "id": "emoji:👧🏻",
+      "group": "smileys",
+      "name": "👧🏻",
+      "emoji": "👧🏻"
+    },
+    {
+      "id": "emoji:👨🏼",
+      "group": "smileys",
+      "name": "👨🏼",
+      "emoji": "👨🏼"
+    },
+    {
+      "id": "emoji:👩🏼",
+      "group": "smileys",
+      "name": "👩🏼",
+      "emoji": "👩🏼"
+    },
+    {
+      "id": "emoji:👦🏼",
+      "group": "smileys",
+      "name": "👦🏼",
+      "emoji": "👦🏼"
+    },
+    {
+      "id": "emoji:👧🏼",
+      "group": "smileys",
+      "name": "👧🏼",
+      "emoji": "👧🏼"
+    },
+    {
+      "id": "emoji:👨🏽",
+      "group": "smileys",
+      "name": "👨🏽",
+      "emoji": "👨🏽"
+    },
+    {
+      "id": "emoji:👩🏽",
+      "group": "smileys",
+      "name": "👩🏽",
+      "emoji": "👩🏽"
+    },
+    {
+      "id": "emoji:👦🏽",
+      "group": "smileys",
+      "name": "👦🏽",
+      "emoji": "👦🏽"
+    },
+    {
+      "id": "emoji:👧🏽",
+      "group": "smileys",
+      "name": "👧🏽",
+      "emoji": "👧🏽"
+    },
+    {
+      "id": "emoji:👨🏾",
+      "group": "smileys",
+      "name": "👨🏾",
+      "emoji": "👨🏾"
+    },
+    {
+      "id": "emoji:👩🏾",
+      "group": "smileys",
+      "name": "👩🏾",
+      "emoji": "👩🏾"
+    },
+    {
+      "id": "emoji:👦🏾",
+      "group": "smileys",
+      "name": "👦🏾",
+      "emoji": "👦🏾"
+    },
+    {
+      "id": "emoji:👧🏾",
+      "group": "smileys",
+      "name": "👧🏾",
+      "emoji": "👧🏾"
+    },
+    {
+      "id": "emoji:👨🏿",
+      "group": "smileys",
+      "name": "👨🏿",
+      "emoji": "👨🏿"
+    },
+    {
+      "id": "emoji:👩🏿",
+      "group": "smileys",
+      "name": "👩🏿",
+      "emoji": "👩🏿"
+    },
+    {
+      "id": "emoji:👦🏿",
+      "group": "smileys",
+      "name": "👦🏿",
+      "emoji": "👦🏿"
+    },
+    {
+      "id": "emoji:👧🏿",
+      "group": "smileys",
+      "name": "👧🏿",
+      "emoji": "👧🏿"
+    },
+    {
+      "id": "emoji:🤡",
+      "group": "smileys",
+      "name": "🤡",
+      "emoji": "🤡"
+    },
+    {
+      "id": "emoji:👻",
+      "group": "smileys",
+      "name": "👻",
+      "emoji": "👻"
+    },
+    {
+      "id": "emoji:👽",
+      "group": "smileys",
+      "name": "👽",
+      "emoji": "👽"
+    },
+    {
+      "id": "emoji:🤖",
+      "group": "smileys",
+      "name": "🤖",
+      "emoji": "🤖"
+    },
+    {
+      "id": "emoji:💩",
+      "group": "smileys",
+      "name": "💩",
+      "emoji": "💩"
+    },
+    {
+      "id": "emoji:👹",
+      "group": "smileys",
+      "name": "👹",
+      "emoji": "👹"
+    },
+    {
+      "id": "emoji:👺",
+      "group": "smileys",
+      "name": "👺",
+      "emoji": "👺"
+    },
+    {
+      "id": "emoji:😈",
+      "group": "smileys",
+      "name": "😈",
+      "emoji": "😈"
+    },
+    {
+      "id": "emoji:😺",
+      "group": "smileys",
+      "name": "😺",
+      "emoji": "😺"
+    },
+    {
+      "id": "emoji:😸",
+      "group": "smileys",
+      "name": "😸",
+      "emoji": "😸"
+    },
+    {
+      "id": "emoji:😹",
+      "group": "smileys",
+      "name": "😹",
+      "emoji": "😹"
+    },
+    {
+      "id": "emoji:😻",
+      "group": "smileys",
+      "name": "😻",
+      "emoji": "😻"
+    },
+    {
+      "id": "emoji:🙀",
+      "group": "smileys",
+      "name": "🙀",
+      "emoji": "🙀"
+    },
+    {
+      "id": "emoji:😼",
+      "group": "smileys",
+      "name": "😼",
+      "emoji": "😼"
+    },
+    {
+      "id": "emoji:🙈",
+      "group": "smileys",
+      "name": "🙈",
+      "emoji": "🙈"
+    },
+    {
+      "id": "emoji:🙉",
+      "group": "smileys",
+      "name": "🙉",
+      "emoji": "🙉"
+    },
+    {
+      "id": "emoji:🙊",
+      "group": "smileys",
+      "name": "🙊",
+      "emoji": "🙊"
+    },
+    {
+      "id": "emoji:🐵",
+      "group": "smileys",
+      "name": "🐵",
+      "emoji": "🐵"
+    },
+    {
+      "id": "emoji:🐶",
+      "group": "smileys",
+      "name": "🐶",
+      "emoji": "🐶"
+    },
+    {
+      "id": "emoji:🐱",
+      "group": "smileys",
+      "name": "🐱",
+      "emoji": "🐱"
+    },
+    {
+      "id": "emoji:🦊",
+      "group": "smileys",
+      "name": "🦊",
+      "emoji": "🦊"
+    },
+    {
+      "id": "emoji:🐼",
+      "group": "smileys",
+      "name": "🐼",
+      "emoji": "🐼"
+    },
+    {
+      "id": "emoji:🦁",
+      "group": "smileys",
+      "name": "🦁",
+      "emoji": "🦁"
+    },
+    {
+      "id": "emoji:🐸",
+      "group": "smileys",
+      "name": "🐸",
+      "emoji": "🐸"
+    },
+    {
+      "id": "family:femme-cartoon-01",
+      "group": "famille",
+      "name": "femme cartoon 01",
+      "image": "family-femme-cartoon-01.png"
+    },
+    {
+      "id": "family:femme-cartoon-2-01",
+      "group": "famille",
+      "name": "femme cartoon 2 01",
+      "image": "family-femme-cartoon-2-01.png"
+    },
+    {
+      "id": "family:femme-cartoon-2-02",
+      "group": "famille",
+      "name": "femme cartoon 2 02",
+      "image": "family-femme-cartoon-2-02.png"
+    },
+    {
+      "id": "family:femme-cartoon-2-03",
+      "group": "famille",
+      "name": "femme cartoon 2 03",
+      "image": "family-femme-cartoon-2-03.png"
+    },
+    {
+      "id": "family:femme-cartoon-2-04",
+      "group": "famille",
+      "name": "femme cartoon 2 04",
+      "image": "family-femme-cartoon-2-04.png"
+    },
+    {
+      "id": "family:femme-cartoon-2-05",
+      "group": "famille",
+      "name": "femme cartoon 2 05",
+      "image": "family-femme-cartoon-2-05.png"
+    },
+    {
+      "id": "family:femme-cartoon-2-06",
+      "group": "famille",
+      "name": "femme cartoon 2 06",
+      "image": "family-femme-cartoon-2-06.png"
+    },
+    {
+      "id": "family:femme-cartoon-2-07",
+      "group": "famille",
+      "name": "femme cartoon 2 07",
+      "image": "family-femme-cartoon-2-07.png"
+    },
+    {
+      "id": "family:femme-cartoon-2-08",
+      "group": "famille",
+      "name": "femme cartoon 2 08",
+      "image": "family-femme-cartoon-2-08.png"
+    },
+    {
+      "id": "family:femme-cartoon-2-09",
+      "group": "famille",
+      "name": "femme cartoon 2 09",
+      "image": "family-femme-cartoon-2-09.png"
+    },
+    {
+      "id": "family:femme-cartoon-2-10",
+      "group": "famille",
+      "name": "femme cartoon 2 10",
+      "image": "family-femme-cartoon-2-10.png"
+    },
+    {
+      "id": "family:femme-cartoon-02",
+      "group": "famille",
+      "name": "femme cartoon 02",
+      "image": "family-femme-cartoon-02.png"
+    },
+    {
+      "id": "family:femme-cartoon-03",
+      "group": "famille",
+      "name": "femme cartoon 03",
+      "image": "family-femme-cartoon-03.png"
+    },
+    {
+      "id": "family:femme-cartoon-04",
+      "group": "famille",
+      "name": "femme cartoon 04",
+      "image": "family-femme-cartoon-04.png"
+    },
+    {
+      "id": "family:femme-cartoon-05",
+      "group": "famille",
+      "name": "femme cartoon 05",
+      "image": "family-femme-cartoon-05.png"
+    },
+    {
+      "id": "family:femme-cartoon-06",
+      "group": "famille",
+      "name": "femme cartoon 06",
+      "image": "family-femme-cartoon-06.png"
+    },
+    {
+      "id": "family:femme-cartoon-07",
+      "group": "famille",
+      "name": "femme cartoon 07",
+      "image": "family-femme-cartoon-07.png"
+    },
+    {
+      "id": "family:femme-cartoon-08",
+      "group": "famille",
+      "name": "femme cartoon 08",
+      "image": "family-femme-cartoon-08.png"
+    },
+    {
+      "id": "family:femme-cartoon-09",
+      "group": "famille",
+      "name": "femme cartoon 09",
+      "image": "family-femme-cartoon-09.png"
+    },
+    {
+      "id": "family:femme-cartoon-10",
+      "group": "famille",
+      "name": "femme cartoon 10",
+      "image": "family-femme-cartoon-10.png"
+    },
+    {
+      "id": "family:femme-photo-1-01",
+      "group": "famille",
+      "name": "femme photo 1 01",
+      "image": "family-femme-photo-1-01.png"
+    },
+    {
+      "id": "family:femme-photo-1-02",
+      "group": "famille",
+      "name": "femme photo 1 02",
+      "image": "family-femme-photo-1-02.png"
+    },
+    {
+      "id": "family:femme-photo-1-03",
+      "group": "famille",
+      "name": "femme photo 1 03",
+      "image": "family-femme-photo-1-03.png"
+    },
+    {
+      "id": "family:femme-photo-1-04",
+      "group": "famille",
+      "name": "femme photo 1 04",
+      "image": "family-femme-photo-1-04.png"
+    },
+    {
+      "id": "family:femme-photo-1-05",
+      "group": "famille",
+      "name": "femme photo 1 05",
+      "image": "family-femme-photo-1-05.png"
+    },
+    {
+      "id": "family:femme-photo-1-06",
+      "group": "famille",
+      "name": "femme photo 1 06",
+      "image": "family-femme-photo-1-06.png"
+    },
+    {
+      "id": "family:femme-photo-1-07",
+      "group": "famille",
+      "name": "femme photo 1 07",
+      "image": "family-femme-photo-1-07.png"
+    },
+    {
+      "id": "family:femme-photo-1-08",
+      "group": "famille",
+      "name": "femme photo 1 08",
+      "image": "family-femme-photo-1-08.png"
+    },
+    {
+      "id": "family:femme-photo-1-09",
+      "group": "famille",
+      "name": "femme photo 1 09",
+      "image": "family-femme-photo-1-09.png"
+    },
+    {
+      "id": "family:femme-photo-1-10",
+      "group": "famille",
+      "name": "femme photo 1 10",
+      "image": "family-femme-photo-1-10.png"
+    },
+    {
+      "id": "family:femme-photo-2-01",
+      "group": "famille",
+      "name": "femme photo 2 01",
+      "image": "family-femme-photo-2-01.png"
+    },
+    {
+      "id": "family:femme-photo-2-02",
+      "group": "famille",
+      "name": "femme photo 2 02",
+      "image": "family-femme-photo-2-02.png"
+    },
+    {
+      "id": "family:femme-photo-2-03",
+      "group": "famille",
+      "name": "femme photo 2 03",
+      "image": "family-femme-photo-2-03.png"
+    },
+    {
+      "id": "family:femme-photo-2-04",
+      "group": "famille",
+      "name": "femme photo 2 04",
+      "image": "family-femme-photo-2-04.png"
+    },
+    {
+      "id": "family:femme-photo-2-05",
+      "group": "famille",
+      "name": "femme photo 2 05",
+      "image": "family-femme-photo-2-05.png"
+    },
+    {
+      "id": "family:femme-photo-2-06",
+      "group": "famille",
+      "name": "femme photo 2 06",
+      "image": "family-femme-photo-2-06.png"
+    },
+    {
+      "id": "family:femme-photo-2-07",
+      "group": "famille",
+      "name": "femme photo 2 07",
+      "image": "family-femme-photo-2-07.png"
+    },
+    {
+      "id": "family:femme-photo-2-08",
+      "group": "famille",
+      "name": "femme photo 2 08",
+      "image": "family-femme-photo-2-08.png"
+    },
+    {
+      "id": "family:femme-photo-2-09",
+      "group": "famille",
+      "name": "femme photo 2 09",
+      "image": "family-femme-photo-2-09.png"
+    },
+    {
+      "id": "family:femme-photo-2-10",
+      "group": "famille",
+      "name": "femme photo 2 10",
+      "image": "family-femme-photo-2-10.png"
+    },
+    {
+      "id": "family:homme-00",
+      "group": "famille",
+      "name": "homme 00",
+      "image": "family-homme-00.png"
+    },
+    {
+      "id": "family:homme-01",
+      "group": "famille",
+      "name": "homme 01",
+      "image": "family-homme-01.png"
+    },
+    {
+      "id": "family:homme-02",
+      "group": "famille",
+      "name": "homme 02",
+      "image": "family-homme-02.png"
+    },
+    {
+      "id": "family:homme-03",
+      "group": "famille",
+      "name": "homme 03",
+      "image": "family-homme-03.png"
+    },
+    {
+      "id": "family:homme-04",
+      "group": "famille",
+      "name": "homme 04",
+      "image": "family-homme-04.png"
+    },
+    {
+      "id": "family:homme-05",
+      "group": "famille",
+      "name": "homme 05",
+      "image": "family-homme-05.png"
+    },
+    {
+      "id": "family:homme-06",
+      "group": "famille",
+      "name": "homme 06",
+      "image": "family-homme-06.png"
+    },
+    {
+      "id": "family:homme-07",
+      "group": "famille",
+      "name": "homme 07",
+      "image": "family-homme-07.png"
+    },
+    {
+      "id": "family:homme-08",
+      "group": "famille",
+      "name": "homme 08",
+      "image": "family-homme-08.png"
+    },
+    {
+      "id": "family:homme-09",
+      "group": "famille",
+      "name": "homme 09",
+      "image": "family-homme-09.png"
+    },
+    {
+      "id": "family:homme-10",
+      "group": "famille",
+      "name": "homme 10",
+      "image": "family-homme-10.png"
+    },
+    {
+      "id": "family:homme-11",
+      "group": "famille",
+      "name": "homme 11",
+      "image": "family-homme-11.png"
+    },
+    {
+      "id": "family:homme-12",
+      "group": "famille",
+      "name": "homme 12",
+      "image": "family-homme-12.png"
+    },
+    {
+      "id": "family:homme-13",
+      "group": "famille",
+      "name": "homme 13",
+      "image": "family-homme-13.png"
+    },
+    {
+      "id": "family:homme-14",
+      "group": "famille",
+      "name": "homme 14",
+      "image": "family-homme-14.png"
+    },
+    {
+      "id": "family:homme-15",
+      "group": "famille",
+      "name": "homme 15",
+      "image": "family-homme-15.png"
+    },
+    {
+      "id": "family:homme-16",
+      "group": "famille",
+      "name": "homme 16",
+      "image": "family-homme-16.png"
+    },
+    {
+      "id": "family:homme-17",
+      "group": "famille",
+      "name": "homme 17",
+      "image": "family-homme-17.png"
+    },
+    {
+      "id": "family:homme-18",
+      "group": "famille",
+      "name": "homme 18",
+      "image": "family-homme-18.png"
+    },
+    {
+      "id": "family:homme-19",
+      "group": "famille",
+      "name": "homme 19",
+      "image": "family-homme-19.png"
+    },
+    {
+      "id": "family:homme-20",
+      "group": "famille",
+      "name": "homme 20",
+      "image": "family-homme-20.png"
+    },
+    {
+      "id": "animal:aigle",
+      "group": "animaux",
+      "name": "aigle",
+      "image": "animal-aigle.png"
+    },
+    {
+      "id": "animal:baleine",
+      "group": "animaux",
+      "name": "baleine",
+      "image": "animal-baleine.png"
+    },
+    {
+      "id": "animal:cerf",
+      "group": "animaux",
+      "name": "cerf",
+      "image": "animal-cerf.png"
+    },
+    {
+      "id": "animal:chat",
+      "group": "animaux",
+      "name": "chat",
+      "image": "animal-chat.png"
+    },
+    {
+      "id": "animal:cheval",
+      "group": "animaux",
+      "name": "cheval",
+      "image": "animal-cheval.png"
+    },
+    {
+      "id": "animal:chevre",
+      "group": "animaux",
+      "name": "chevre",
+      "image": "animal-chevre.png"
+    },
+    {
+      "id": "animal:chien",
+      "group": "animaux",
+      "name": "chien",
+      "image": "animal-chien.png"
+    },
+    {
+      "id": "animal:dauphin",
+      "group": "animaux",
+      "name": "dauphin",
+      "image": "animal-dauphin.png"
+    },
+    {
+      "id": "animal:ecureuil",
+      "group": "animaux",
+      "name": "ecureuil",
+      "image": "animal-ecureuil.png"
+    },
+    {
+      "id": "animal:elephant",
+      "group": "animaux",
+      "name": "elephant",
+      "image": "animal-elephant.png"
+    },
+    {
+      "id": "animal:girafe",
+      "group": "animaux",
+      "name": "girafe",
+      "image": "animal-girafe.png"
+    },
+    {
+      "id": "animal:herisson",
+      "group": "animaux",
+      "name": "herisson",
+      "image": "animal-herisson.png"
+    },
+    {
+      "id": "animal:hippopotame",
+      "group": "animaux",
+      "name": "hippopotame",
+      "image": "animal-hippopotame.png"
+    },
+    {
+      "id": "animal:kangourou",
+      "group": "animaux",
+      "name": "kangourou",
+      "image": "animal-kangourou.png"
+    },
+    {
+      "id": "animal:koala",
+      "group": "animaux",
+      "name": "koala",
+      "image": "animal-koala.png"
+    },
+    {
+      "id": "animal:lapin",
+      "group": "animaux",
+      "name": "lapin",
+      "image": "animal-lapin.png"
+    },
+    {
+      "id": "animal:lion",
+      "group": "animaux",
+      "name": "lion",
+      "image": "animal-lion.png"
+    },
+    {
+      "id": "animal:loup",
+      "group": "animaux",
+      "name": "loup",
+      "image": "animal-loup.png"
+    },
+    {
+      "id": "animal:mouton",
+      "group": "animaux",
+      "name": "mouton",
+      "image": "animal-mouton.png"
+    },
+    {
+      "id": "animal:ours",
+      "group": "animaux",
+      "name": "ours",
+      "image": "animal-ours.png"
+    },
+    {
+      "id": "animal:panda",
+      "group": "animaux",
+      "name": "panda",
+      "image": "animal-panda.png"
+    },
+    {
+      "id": "animal:perroquet",
+      "group": "animaux",
+      "name": "perroquet",
+      "image": "animal-perroquet.png"
+    },
+    {
+      "id": "animal:renard",
+      "group": "animaux",
+      "name": "renard",
+      "image": "animal-renard.png"
+    },
+    {
+      "id": "animal:requin",
+      "group": "animaux",
+      "name": "requin",
+      "image": "animal-requin.png"
+    },
+    {
+      "id": "animal:rhinoceros",
+      "group": "animaux",
+      "name": "rhinoceros",
+      "image": "animal-rhinoceros.png"
+    },
+    {
+      "id": "animal:sanglier",
+      "group": "animaux",
+      "name": "sanglier",
+      "image": "animal-sanglier.png"
+    },
+    {
+      "id": "animal:tigre",
+      "group": "animaux",
+      "name": "tigre",
+      "image": "animal-tigre.png"
+    },
+    {
+      "id": "animal:tortue",
+      "group": "animaux",
+      "name": "tortue",
+      "image": "animal-tortue.png"
+    },
+    {
+      "id": "animal:vache",
+      "group": "animaux",
+      "name": "vache",
+      "image": "animal-vache.png"
+    },
+    {
+      "id": "animal:zebre",
+      "group": "animaux",
+      "name": "zebre",
+      "image": "animal-zebre.png"
+    }
+  ]
+}

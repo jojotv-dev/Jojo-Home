@@ -1,0 +1,71 @@
+[versions]
+agp = "9.2.1"
+kotlin = "2.3.0"
+
+# New dependencies
+hilt = "2.59.2"
+moshi = "1.15.1"
+ksp = "2.3.9"
+
+# Room
+room = "2.7.1"
+
+# WorkManager
+
+# Security
+
+# DocumentFile
+
+# Test
+
+# Kover
+
+[libraries]
+
+# Hilt
+
+# Networking
+moshi-codegen = { group = "com.squareup.moshi", name = "moshi-kotlin-codegen", version.ref = "moshi" }
+
+# Coroutines
+
+# Image Loading
+
+# Navigation
+
+# DataStore
+
+# ViewModel
+
+# Media3 ExoPlayer
+
+# Local Plugin System
+
+# Markdown rendering
+
+# Kotlinx Serialization
+
+# Room
+
+# WorkManager
+
+# Security
+
+# DocumentFile
+
+# Core KTX alias for iptv modules
+
+# Play Services Auth
+
+# Tests
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+room = { id = "androidx.room", version.ref = "room" }

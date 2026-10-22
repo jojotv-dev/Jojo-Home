@@ -1,0 +1,173 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission android:name="com.android.providers.tv.permission.READ_EPG_DATA" />
+    <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
+    <uses-permission android:name="android.permission.READ_LOGS" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <uses-permission android:name="com.jojo.tv.permission.READ_CONTINUE_WATCHING" />
+    <uses-permission android:name="com.jojo.tv.debug.permission.READ_CONTINUE_WATCHING" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:name="com.nuvio.tv.NuvioApplication"
+        android:enableOnBackInvokedCallback="false"
+        android:usesCleartextTraffic="true"
+        android:banner="@drawable/jojo_home_banner"
+        android:icon="@drawable/jojo_home_icon_install"
+        android:roundIcon="@drawable/jojo_home_icon_install"
+        android:label="Jojo Home"
+        android:theme="@style/Theme.JojoHome">
+        <activity android:name=".progresspilot.SupabaseProgressPilotActivity" android:exported="false"
+            android:screenOrientation="landscape" />
+        <activity android:name=".progresspilot.SupabaseAccountActivity" android:exported="false"
+            android:screenOrientation="landscape" />
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+        <activity
+            android:name=".TvListingsPermissionActivity"
+            android:exported="false" />
+        <activity
+            android:name="com.nuvio.tv.ui.screens.freebox.FreeboxAuthorizationActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.JojoHome" />
+        <activity
+            android:name=".NuvioPlayerActivity"
+            android:exported="true"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.JojoHome">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:mimeType="video/*" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".ExternalPlaybackActivity"
+            android:exported="true" android:label="JojoHome — lecteur"
+            android:screenOrientation="landscape" android:theme="@style/Theme.JojoHome">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="application/x-mpegURL" />
+                <data android:mimeType="application/vnd.apple.mpegurl" />
+            </intent-filter>
+        </activity>
+        <service
+            android:name=".FireOsHomeOverlayService"
+            android:directBootAware="true"
+            android:enabled="true"
+            android:exported="false" />
+        <service
+            android:name=".FireOsHomeButtonService"
+            android:directBootAware="true"
+            android:enabled="true"
+            android:exported="false" />
+        <service
+            android:name=".NotificationResumeListenerService"
+            android:label="Jojo Home"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+        <activity
+            android:name=".MainActivity"
+            android:theme="@style/Theme.JojoHome.Home"
+            android:exported="true"
+            android:banner="@drawable/jojo_home_banner"
+            android:icon="@drawable/jojo_home_icon_install"
+            android:roundIcon="@drawable/jojo_home_icon_install"
+            android:windowSoftInputMode="adjustResize"
+            android:screenOrientation="landscape"
+            android:autoRemoveFromRecents="true"
+            android:clearTaskOnLaunch="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:resumeWhilePausing="true"
+            android:stateNotNeeded="true"
+            android:taskAffinity="com.jojotv.home">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="fireos.intent.category.MAIN_HOME" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.files" android:exported="false" android:grantUriPermissions="true"><meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" /></provider>
+        <activity android:name=".iptv.IptvActivity" android:exported="false"
+            android:screenOrientation="landscape" android:theme="@style/Theme.JojoHome"
+            android:windowSoftInputMode="adjustResize" />
+        <service android:name=".iptv.IptvRecordingService" android:exported="false" android:foregroundServiceType="dataSync" />
+        <receiver android:name=".iptv.IptvRecordingReceiver" android:exported="false">
+            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
+        </receiver>
+        <receiver android:name=".CalendarReminderReceiver" android:exported="false" />
+        <receiver
+            android:name=".BootReceiver"
+            android:directBootAware="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.USER_UNLOCKED" />
+                <action android:name="android.intent.action.SCREEN_ON" />
+                <action android:name="android.intent.action.USER_PRESENT" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".BootReceiver$FireTvBootReceiver"
+            android:directBootAware="true"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.USER_UNLOCKED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

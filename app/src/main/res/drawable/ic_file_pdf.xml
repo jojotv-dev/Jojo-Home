@@ -1,0 +1,12 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+    <!-- Fond rouge vif arrondi -->
+    <path android:fillColor="#E63946" android:pathData="M5,4c-1.1,0-2,0.9-2,2v36c0,1.1,0.9,2,2,2h38c1.1,0,2-0.9,2-2V6c0-1.1-0.9-2-2-2H5z"/>
+    <!-- Triangle blanc en haut à droite -->
+    <path android:fillColor="#FFFFFF" android:pathData="M38,4l10,10h-10V4z"/>
+    <!-- Lettre P -->
+    <path android:fillColor="#FFFFFF" android:pathData="M10,16h4c1.1,0,2,0.9,2,2v2c0,1.1-0.9,2-2,2h-2v4h-2V16zm4,4h-2v-2h2V20z"/>
+    <!-- Lettre D -->
+    <path android:fillColor="#FFFFFF" android:pathData="M20,16h3c2.2,0,4,1.8,4,4v4c0,2.2-1.8,4-4,4h-3V16zm3,8h-1v-6h1c1.1,0,2,0.9,2,2v2c0,1.1-0.9,2-2,2z"/>
+    <!-- Lettre F -->
+    <path android:fillColor="#FFFFFF" android:pathData="M32,16h4v2h-2v10h-2V18h-2v-2h2z"/>
+</vector>

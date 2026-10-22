@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "groups": [
+    {
+      "id": "avatar",
+      "name": "Avatar"
+    }
+  ],
+  "avatars": [
+    {
+      "id": "initial:theme-0",
+      "group": "avatar",
+      "name": "Bleu sombre",
+      "color": "#202F52"
+    },
+    {
+      "id": "initial:theme-1",
+      "group": "avatar",
+      "name": "Gris foncé",
+      "color": "#393F49"
+    },
+    {
+      "id": "initial:theme-2",
+      "group": "avatar",
+      "name": "Vert minéral",
+      "color": "#2E7D32"
+    },
+    {
+      "id": "initial:theme-3",
+      "group": "avatar",
+      "name": "Rouge pétant",
+      "color": "#DC3F3F"
+    },
+    {
+      "id": "initial:theme-4",
+      "group": "avatar",
+      "name": "Jaune moutarde",
+      "color": "#D3A033"
+    },
+    {
+      "id": "initial:theme-5",
+      "group": "avatar",
+      "name": "Turquoise",
+      "color": "#009999"
+    },
+    {
+      "id": "initial:theme-6",
+      "group": "avatar",
+      "name": "Violet profond",
+      "color": "#673AB7"
+    },
+    {
+      "id": "initial:theme-7",
+      "group": "avatar",
+      "name": "Orange brûlé",
+      "color": "#C45F20"
+    },
+    {
+      "id": "initial:theme-8",
+      "group": "avatar",
+      "name": "Bleu acier",
+      "color": "#4A6996"
+    },
+    {
+      "id": "initial:theme-9",
+      "group": "avatar",
+      "name": "Gris clair",
+      "color": "#BDBDBD"
+    },
+    {
+      "id": "initial:theme-10",
+      "group": "avatar",
+      "name": "Rose",
+      "color": "#F06292"
+    },
+    {
+      "id": "initial:theme-11",
+      "group": "avatar",
+      "name": "Indigo",
+      "color": "#3F51B5"
+    },
+    {
+      "id": "initial:theme-12",
+      "group": "avatar",
+      "name": "Bleu",
+      "color": "#2196F3"
+    },
+    {
+      "id": "initial:theme-13",
+      "group": "avatar",
+      "name": "Cyan",
+      "color": "#00BCD4"
+    },
+    {
+      "id": "initial:theme-14",
+      "group": "avatar",
+      "name": "Sarcelle",
+      "color": "#009688"
+    },
+    {
+      "id": "initial:theme-15",
+      "group": "avatar",
+      "name": "Vert",
+      "color": "#4CAF50"
+    },
+    {
+      "id": "initial:theme-16",
+      "group": "avatar",
+      "name": "Citron",
+      "color": "#CDDC39"
+    },
+    {
+      "id": "initial:theme-17",
+      "group": "avatar",
+      "name": "Jaune",
+      "color": "#FFEB3B"
+    },
+    {
+      "id": "initial:theme-18",
+      "group": "avatar",
+      "name": "Blanc",
+      "color": "#FFFFFF"
+    },
+    {
+      "id": "initial:theme-19",
+      "group": "avatar",
+      "name": "Noir",
+      "color": "#08080A"
+    },
+    {
+      "id": "initial:theme-20",
+      "group": "avatar",
+      "name": "Noir AMOLED",
+      "color": "#000000"
+    }
+  ]
+}

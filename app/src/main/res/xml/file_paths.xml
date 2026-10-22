@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+-->
+<paths>
+    <cache-path
+        name="updates"
+        path="updates/" />
+    <cache-path
+        name="apk_cache"
+        path="." />
+    <files-path
+        name="app_files"
+        path="." />
+    <external-files-path
+        name="app_external_files"
+        path="." />
+    <external-path
+        name="shared_storage"
+        path="." />
+</paths>

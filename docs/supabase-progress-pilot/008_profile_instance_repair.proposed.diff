@@ -1,0 +1,299 @@
+--- a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotStore.kt
++++ b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotStore.kt
+@@ -44,8 +44,14 @@
+     NAS_UNAVAILABLE("L'identité du compte NAS n'est pas disponible localement."),
+     NAS_CHANGED("Le compte ou l'adresse NAS diffère de l'association du pilote."),
+     PROFILE_CHANGED("Le profil actif ne correspond pas au profil associé."),
+-    PROFILE_RECREATED("Le profil associé a été supprimé ou recréé."),
++    PROFILE_INSTANCE_MISSING("L'identifiant technique du profil associé est absent. Une réassociation explicite est nécessaire."),
++    PROFILE_RECREATED("L'identifiant technique du profil a changé. Une réassociation explicite est nécessaire."),
+     KEY_INVALID("La clé HMAC locale est absente ou invalide.")
++}
++
++internal fun PilotScope.checkKeyProfileInstance(current: String?) {
++    if (current == null) throw PilotKeyCheckBlocked(PilotKeyCheckIssue.PROFILE_INSTANCE_MISSING)
++    if (current != localProfileInstanceId) throw PilotKeyCheckBlocked(PilotKeyCheckIssue.PROFILE_RECREATED)
+ }
+ 
+ internal class PilotKeyCheckBlocked(val issue: PilotKeyCheckIssue) :
+@@ -102,6 +108,35 @@
+             "Le journal ne correspond pas à cette association."
+         }
+         return bound
++    }
++
++    internal fun validateKeyRepairJournal(journal: PilotJournal) {
++        require(mode == PilotMode.NAS_ONLY)
++        require(journal.issue == null && journal.pending.isEmpty()) { "La file doit être saine et vide." }
++        require(journal.epoch.isNotEmpty() || !everActivated) { "Compteur technique manquant." }
++        if (keyRepairFromEpoch.isEmpty()) validateLocalDiagnostic(journal)
++    }
++
++    /** Explicit repair of key material and, optionally, the same primary profile's local marker. */
++    internal fun plannedKeyRepair(journal: PilotJournal, normalizedKey: String, context: PilotCaptureContext,
++                                  challenge: String, reference: String, instance: String): PilotLocalSettings {
++        validateKeyRepairJournal(journal)
++        val bound = requireNotNull(scope)
++        require(UUID.fromString(instance).toString() == instance)
++        // Primary profile cannot be deleted through ProfileManager. Secondary reassignment needs review.
++        require(instance == bound.localProfileInstanceId || bound.localProfileId == 1)
++        val checked = checkedKey(context, challenge, reference)
++        if (keyRepairFromEpoch.isNotEmpty()) {
++            require(hmacKeyBase64 == normalizedKey && instance == bound.localProfileInstanceId) {
++                "Termine la réparation en attente avec la même clé et la même instance."
++            }
++            return this
++        }
++        if (hmacKeyBase64 == normalizedKey && instance == bound.localProfileInstanceId) return checked
++        return copy(scope = bound.copy(localProfileInstanceId = instance, epoch = UUID.randomUUID().toString()),
++            hmacKeyBase64 = normalizedKey, keyCheckEpoch = "", keyCheckChallenge = checked.keyCheckChallenge,
++            keyCheckCode = checked.keyCheckCode, keyRepairFromEpoch = bound.epoch, keyRepairSequence = journal.sequence,
++            registeredSessionId = "", nextAttemptMs = 0, lastIssue = "KEY_REPAIR_PENDING")
+     }
+ 
+     internal fun withoutKeyCheck() = copy(keyCheckEpoch = "", keyCheckChallenge = "", keyCheckCode = "")
+@@ -322,34 +357,22 @@
+     }
+ 
+     internal fun beginKeyRepair(expected: PilotLocalSettings, journal: PilotJournal, candidate: String,
+-                                challenge: String, reference: String): PilotLocalSettings = synchronized(lock) {
+-        val bound = keyScope(expected)
++                                challenge: String, reference: String,
++                                instance: String = requireNotNull(expected.scope).localProfileInstanceId): PilotLocalSettings = synchronized(lock) {
++        keyScope(expected)
+         requests.stop()
+         deliveryPermit = null
+         activationId = ""
+         save(expected.withoutKeyCheck())
+         val current = state.value
+-        require(journal.issue == null && journal.pending.isEmpty()) { "La file doit être saine et vide." }
+-        require(journal.epoch.isNotEmpty() || !current.everActivated) { "Compteur technique manquant." }
++        current.validateKeyRepairJournal(journal)
+         val secret = try { Base64.decode(candidate.trim(), Base64.DEFAULT) } catch (_: Exception) { error("Clé HMAC invalide.") }
+         val normalized = try {
+             require(secret.size == 32) { "Clé HMAC invalide." }
+             Base64.encodeToString(secret, Base64.NO_WRAP)
+         } finally { secret.fill(0) }
+-        val checked = current.checkedKey(keyContext(current, normalized), challenge, reference)
+-        if (current.keyRepairFromEpoch.isNotEmpty()) {
+-            require(current.hmacKeyBase64 == normalized) { "Termine la réparation en attente avec la même clé." }
+-            return@synchronized current
+-        }
+-        current.validateLocalDiagnostic(journal)
+-        if (current.hmacKeyBase64 == normalized) {
+-            save(checked)
+-            return@synchronized state.value
+-        }
+-        save(current.copy(scope = bound.copy(epoch = UUID.randomUUID().toString()), hmacKeyBase64 = normalized,
+-            keyCheckChallenge = checked.keyCheckChallenge, keyCheckCode = checked.keyCheckCode,
+-            keyRepairFromEpoch = bound.epoch, keyRepairSequence = journal.sequence,
+-            registeredSessionId = "", nextAttemptMs = 0, lastIssue = "KEY_REPAIR_PENDING"))
++        val next = current.plannedKeyRepair(journal, normalized, keyContext(current, normalized), challenge, reference, instance)
++        if (next !== current) save(next)
+         state.value
+     }
+ 
+--- a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotRuntime.kt
++++ b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotRuntime.kt
+@@ -58,7 +58,7 @@
+     @ApplicationContext private val context: Context,
+     private val store: SupabaseProgressPilotStore,
+     private val api: SupabaseProgressApi,
+-    preferences: WatchProgressPreferences,
++    private val preferences: WatchProgressPreferences,
+     private val nasSession: NasSyncSessionDataStore,
+     private val profiles: ProfileManager
+ ) {
+@@ -160,14 +160,20 @@
+         store.activate()
+     }
+ 
+-    internal suspend fun keyCheckScope(): PilotScope {
++    /** Memory-only import remains bound to the enrolled account, installation, NAS and active profile. */
++    internal suspend fun keyImportScope(): PilotScope {
+         awaitLocalIdentity()
+         val expected = store.settings.value
+         val bound = store.keyScope(expected)
+-        if (!profiles.activeProfileReady.value || profiles.activeProfileId.value != bound.localProfileId)
++        if (!profiles.activeProfileReady.value || profiles.activeProfileId.value != bound.localProfileId ||
++            profiles.profiles.value.none { it.id == bound.localProfileId })
+             throw PilotKeyCheckBlocked(PilotKeyCheckIssue.PROFILE_CHANGED)
+-        if (queue.profileInstanceId(bound.localProfileId) != bound.localProfileInstanceId)
+-            throw PilotKeyCheckBlocked(PilotKeyCheckIssue.PROFILE_RECREATED)
++        return bound
++    }
++
++    internal suspend fun keyCheckScope(): PilotScope {
++        val bound = keyImportScope()
++        bound.checkKeyProfileInstance(queue.profileInstanceId(bound.localProfileId))
+         return bound
+     }
+ 
+@@ -181,13 +187,22 @@
+         }
+     }
+ 
+-    internal suspend fun repairKey(candidate: String, challenge: String, reference: String) = withContext(Dispatchers.IO) {
++    internal suspend fun repairKey(candidate: String, challenge: String, reference: String,
++                                    recoverProfileInstance: Boolean = false) = withContext(Dispatchers.IO) {
+         deliveryMutex.withLock {
+-            val bound = keyCheckScope()
++            val bound = if (recoverProfileInstance) keyImportScope() else keyCheckScope()
+             val expected = store.settings.value
+             val journal = queue.observe(bound.localProfileId).first()
+-            require(keyCheckScope() == bound)
+-            val prepared = store.beginKeyRepair(expected, journal, candidate, challenge, reference)
++            expected.validateKeyRepairJournal(journal)
++            store.candidateKeyMatches(expected, candidate, challenge, reference) // Before creating any marker.
++            if (recoverProfileInstance) require(bound.localProfileId == 1) { "La réassociation d'un profil secondaire exige une revue." }
++            if (expected.keyRepairFromEpoch.isNotEmpty())
++                bound.checkKeyProfileInstance(queue.profileInstanceId(bound.localProfileId))
++            val instance = if (recoverProfileInstance) preferences.getOrCreatePilotProfileInstanceId(bound.localProfileId)
++                else bound.localProfileInstanceId
++            require(keyImportScope() == bound)
++            require(queue.profileInstanceId(bound.localProfileId) == instance)
++            val prepared = store.beginKeyRepair(expected, journal, candidate, challenge, reference, instance)
+             if (prepared.keyRepairFromEpoch.isNotEmpty()) {
+                 cancelPilotWork()
+                 val repaired = queue.repairKeyEpoch(requireNotNull(prepared.scope),
+--- a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotActivity.kt
++++ b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotActivity.kt
+@@ -159,7 +159,7 @@
+         command("Préparer la réception chiffrée de la clé conservée") {
+             operation(keyFeedback, "Réception prête pendant cinq minutes. Aucun secret envoyé ou enregistré.",
+                 runningMessage = "Préparation locale…", failureMessage = "Réception refusée : vérifie NAS_ONLY et les identités.") {
+-                val bound = services.runtime().keyCheckScope()
++                val bound = services.runtime().keyImportScope()
+                 val receiver = PilotKeyImportSession(bound)
+                 val token = receiver.publicToken { Base64.encodeToString(it, Base64.NO_WRAP) }
+                 withContext(Dispatchers.Main) {
+@@ -177,7 +177,7 @@
+             operation(keyFeedback, "Clé reçue en mémoire. La correction exige encore une validation explicite.",
+                 runningMessage = "Réception locale…", failureMessage = "Import refusé : prépare une nouvelle réception et vérifie le texte chiffré.") {
+                 require(ciphertext.length <= 512)
+-                val bound = services.runtime().keyCheckScope()
++                val bound = services.runtime().keyImportScope()
+                 val bytes = requireNotNull(receiver).unwrap(Base64.decode(ciphertext, Base64.DEFAULT), bound)
+                 try {
+                     val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
+@@ -195,15 +195,22 @@
+             isSaveEnabled = false
+         }
+         options.addView(repairConsent)
++        val profileRepairConsent = CheckBox(this).apply {
++            text = "J’autorise aussi la réassociation technique du même profil principal si son identifiant d’instance a changé (file vide, NAS_ONLY)."
++            setTextColor(Color.WHITE)
++            isSaveEnabled = false
++        }
++        options.addView(profileRepairConsent)
+         command("Corriger la clé de référence · NAS_ONLY") {
+             if (!repairConsent.isChecked) { showFeedback(keyFeedback, "Confirme explicitement la correction locale avant de continuer."); return@command }
+             val candidate = hmacKey.text.toString().trim()
+             val nonce = keyChallenge.text.toString().trim()
+             val reference = keyReference.text.toString().trim()
++            val recoverProfileInstance = profileRepairConsent.isChecked
+             operation(keyFeedback, "Clé corrigée et conforme au code de référence. NAS_ONLY conservé ; aucune reprise importée.",
+                 runningMessage = "Correction locale de la clé…", failureMessage = "Correction refusée : vérifie la file vide, les identités et la référence. Une réparation interrompue exige la même clé.") {
+-                services.runtime().repairKey(candidate, nonce, reference)
+-                withContext(Dispatchers.Main) { repairConsent.isChecked = false }
++                services.runtime().repairKey(candidate, nonce, reference, recoverProfileInstance)
++                withContext(Dispatchers.Main) { repairConsent.isChecked = false; profileRepairConsent.isChecked = false }
+             }
+         }
+         val approved = CheckBox(this).apply {
+--- a/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressPilotTest.kt
++++ b/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressPilotTest.kt
+@@ -25,6 +25,59 @@
+     private val endpoint = PilotEndpoint("https://pilot-test.supabase.co", "sb_publishable_test")
+     private val session = PilotAuthSession(OWNER, SESSION, "supabase-test-token", "supabase-refresh", 10_000)
+ 
++    @Test fun profileInstanceDiagnosticSeparatesMissingAndDifferentMarkers() {
++        binding.checkKeyProfileInstance(INSTANCE)
++        val absent = runCatching { binding.checkKeyProfileInstance(null) }.exceptionOrNull() as PilotKeyCheckBlocked
++        val changed = runCatching { binding.checkKeyProfileInstance(OTHER_OWNER) }.exceptionOrNull() as PilotKeyCheckBlocked
++        assertEquals(PilotKeyCheckIssue.PROFILE_INSTANCE_MISSING, absent.issue)
++        assertEquals(PilotKeyCheckIssue.PROFILE_RECREATED, changed.issue)
++    }
++
++    @Test fun explicitPrimaryInstanceRepairChangesOnlyTechnicalIdentityAndKeepsRevisionFloor() {
++        val nonce = "00000000-0000-4000-8000-000000000099"
++        val key = Base64.getEncoder().encodeToString(ByteArray(32) { it.toByte() })
++        val saved = PilotLocalSettings(deviceId = DEVICE_A, scope = binding, session = session, endpoint = endpoint,
++            hmacKeyBase64 = key, nasAuthorityDigest = "synthetic-authority", everActivated = true,
++            backendApproved = true, lastAckMs = 1234)
++        val journal = PilotJournal(epoch = EPOCH, sequence = 42, fingerprints = mapOf("a".repeat(64) to "b".repeat(64)))
++        val prepared = saved.plannedKeyRepair(journal, key, context, nonce, context.pairingKeyCode(nonce), OTHER_OWNER)
++        val next = requireNotNull(prepared.scope)
++        assertEquals(binding.copy(localProfileInstanceId = OTHER_OWNER, epoch = next.epoch), next)
++        assertNotEquals(EPOCH, next.epoch)
++        assertEquals(42L, prepared.keyRepairSequence)
++        assertEquals(EPOCH, prepared.keyRepairFromEpoch)
++        assertEquals(saved.session, prepared.session)
++        assertEquals(saved.endpoint, prepared.endpoint)
++        assertEquals(saved.deviceId, prepared.deviceId)
++        assertEquals(saved.nasAuthorityDigest, prepared.nasAuthorityDigest)
++        assertEquals(saved.hmacKeyBase64, prepared.hmacKeyBase64)
++        assertEquals(saved.lastAckMs, prepared.lastAckMs)
++        assertEquals(PilotMode.NAS_ONLY, prepared.mode)
++        assertFalse(prepared.keyCheckMatches(PilotCaptureContext(next,100,ByteArray(32) { it.toByte() })))
++        val repaired = journal.forKeyRepair(EPOCH, next.epoch, 42)
++        assertTrue(repaired.fingerprints.isEmpty() && repaired.pending.isEmpty())
++        assertEquals(43L, repaired.enqueue(PilotCaptureContext(next,100,ByteArray(32) { it.toByte() }),payload()).sequence)
++        val resumed = PilotCaptureContext(next,100,ByteArray(32) { it.toByte() })
++        assertEquals(prepared, prepared.plannedKeyRepair(repaired,key,resumed,nonce,resumed.pairingKeyCode(nonce),OTHER_OWNER))
++    }
++
++    @Test fun instanceRepairRefusesPendingForeignEpochWrongReferenceAndSecondaryReassignment() {
++        val nonce = "00000000-0000-4000-8000-000000000099"
++        val key = Base64.getEncoder().encodeToString(ByteArray(32) { it.toByte() })
++        val saved = PilotLocalSettings(deviceId = DEVICE_A, scope = binding, session = session,
++            hmacKeyBase64 = key, everActivated = true)
++        for (journal in listOf(PilotJournal(),PilotJournal(epoch=OTHER_OWNER),
++                PilotJournal(epoch=EPOCH,issue="OUTBOX_UNREADABLE"),PilotJournal().enqueue(context,payload())))
++            assertTrue(runCatching { saved.plannedKeyRepair(journal,key,context,nonce,context.pairingKeyCode(nonce),OTHER_OWNER) }.isFailure)
++        val journal = PilotJournal(epoch=EPOCH)
++        assertTrue(runCatching { saved.plannedKeyRepair(journal,key,context,nonce,"a".repeat(64),OTHER_OWNER) }.exceptionOrNull() is PilotKeyMismatch)
++        val secondary = binding.copy(localProfileId=2)
++        assertTrue(runCatching { saved.copy(scope=secondary).plannedKeyRepair(journal,key,
++            PilotCaptureContext(secondary,100,ByteArray(32) { it.toByte() }),nonce,context.pairingKeyCode(nonce),OTHER_OWNER) }.isFailure)
++        assertTrue(runCatching { saved.copy(mode=PilotMode.NAS_WITH_SUPABASE_MIRROR)
++            .plannedKeyRepair(journal,key,context,nonce,context.pairingKeyCode(nonce),OTHER_OWNER) }.isFailure)
++    }
++
+     @Test fun keyScopeAcceptsOnlyTheEnrolledDeviceAccountAndNasAuthority() {
+         val settings = PilotLocalSettings(deviceId = DEVICE_A, scope = binding, session = session,
+             nasAuthorityDigest = "synthetic-nas-authority")
+--- a/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressCaptureTest.kt
++++ b/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressCaptureTest.kt
+@@ -46,6 +46,31 @@
+ 
+     @After fun tearDown() = runBlocking { io.cancel(); jobs.join() }
+ 
++    @Test fun explicitMarkerRecoveryAndEpochRepairPreserveAllNonPilotPreferences() = runBlocking {
++        enroll()
++        val previous = requireNotNull(capture).scope
++        capture = null // NAS_ONLY; no checkpoint import.
++        val progress = SupabaseProgressPilotTest.progress()
++        preferences.saveProgress(progress,1)
++        preferences.enqueuePendingRemoteDeletes(listOf("nas-only-delete"),1)
++        val marker = androidx.datastore.preferences.core.stringPreferencesKey("progress_pilot_profile_instance")
++        val outbox = androidx.datastore.preferences.core.stringPreferencesKey("progress_pilot_delivery_outbox")
++        delivery(1).edit { it[outbox] = PilotJson.encode(PilotJournal(epoch=previous.epoch,sequence=42)) }
++        local(1).edit { it.remove(marker) } // Synthetic loss of the technical marker.
++        val before = local(1).data.first().asMap()
++        assertNull(preferences.pilotProfileInstanceId(1))
++        assertTrue(runCatching { previous.checkKeyProfileInstance(null) }.isFailure)
++        val instance = preferences.getOrCreatePilotProfileInstanceId(1)
++        val next = previous.copy(localProfileInstanceId=instance,epoch=UUID.randomUUID().toString())
++        val repaired = preferences.pilotDeliveryQueue().repairKeyEpoch(next,previous.epoch,42)
++        assertEquals(before,local(1).data.first().asMap().filterKeys { it != marker })
++        assertEquals(progress,preferences.getAllRawEntries(1)[progress.storageKey])
++        assertEquals(setOf("nas-only-delete"),preferences.pendingRemoteDeleteKeys(1))
++        assertEquals(42L,repaired.sequence)
++        assertTrue(repaired.pending.isEmpty() && repaired.fingerprints.isEmpty())
++        assertEquals(instance,preferences.pilotProfileInstanceId(1))
++    }
++
+     @Test fun delayedCaptureCannotPolluteKeyRepairWhileNasProgressIsPreserved() = runBlocking {
+         val realDelivery = delivery(1)
+         val waiting = CompletableDeferred<Unit>()

@@ -1,0 +1,745 @@
+diff --git a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilot.kt b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilot.kt
+--- a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilot.kt
++++ b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilot.kt
+@@ -5,6 +5,12 @@
+ import java.io.ByteArrayOutputStream
+ import java.io.DataOutputStream
+ import java.security.MessageDigest
++import java.security.KeyPairGenerator
++import java.security.spec.MGF1ParameterSpec
++import java.nio.ByteBuffer
++import javax.crypto.Cipher
++import javax.crypto.spec.OAEPParameterSpec
++import javax.crypto.spec.PSource
+ import java.util.UUID
+ import javax.crypto.Mac
+ import javax.crypto.spec.SecretKeySpec
+@@ -89,6 +95,12 @@
+     }
+ 
+     // Separate domains and framing prevent a diagnostic code from becoming a production content_key.
++    internal fun pairingKeyCode(challenge: String): String {
++        require(UUID.fromString(challenge).toString() == challenge) { "Défi UUID invalide." }
++        return diagnosticHmac("jojo-progress-pilot:key-pair:v1", challenge, scope.ownerId,
++            scope.profileBindingId, scope.deviceA, scope.deviceB)
++    }
++
+     private fun diagnosticHmac(vararg values: String): String {
+         val bytes = ByteArrayOutputStream()
+         DataOutputStream(bytes).use { out ->
+@@ -115,6 +127,44 @@
+     override fun toString() = "PilotLocalDiagnosticReport(redacted)"
+ 
+     companion object { const val MAX_DISPLAYED_CODES = 16 }
++}
++
++internal class PilotKeyMismatch : IllegalArgumentException("La clé ne correspond pas au code de référence de l’autre appareil.")
++internal class PilotKeyCheckRequired : IllegalStateException("Vérifie la correspondance de la clé avant d’activer le miroir.")
++
++/** Ephemeral receiver. Only a public wrapping key crosses ADB; the HMAC is never a command argument. */
++internal class PilotKeyImportSession(private val bound: PilotScope,
++                                     private val clock: () -> Long = { System.nanoTime() / 1_000_000 }) {
++    private val created = clock()
++    private val nonce = UUID.randomUUID()
++    private val binding = MessageDigest.getInstance("SHA-256").digest(
++        listOf("jojo-progress-pilot:key-import:v1", bound.ownerId, bound.profileBindingId,
++            bound.deviceId, bound.epoch).joinToString("\u0000").toByteArray(Charsets.UTF_8))
++    private val wrapping = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
++    private var consumed = false
++
++    init { bound.validate() }
++
++    fun publicToken(encode: (ByteArray) -> String): String =
++        "JPK1|$nonce|${binding.hex()}|${encode(wrapping.public.encoded)}"
++
++    @Synchronized fun unwrap(ciphertext: ByteArray, current: PilotScope): ByteArray {
++        require(!consumed)
++        consumed = true
++        require(current == bound && clock() - created in 0..300_000 && ciphertext.size == 256)
++        val cipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding")
++        cipher.init(Cipher.DECRYPT_MODE, wrapping.private,
++            OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA256, PSource.PSpecified.DEFAULT))
++        val packet = cipher.doFinal(ciphertext)
++        try {
++            val expectedNonce = ByteBuffer.allocate(16).putLong(nonce.mostSignificantBits).putLong(nonce.leastSignificantBits).array()
++            require(packet.size == 80 && MessageDigest.isEqual(packet.copyOfRange(0, 16), expectedNonce) &&
++                MessageDigest.isEqual(packet.copyOfRange(16, 48), binding))
++            return packet.copyOfRange(48, 80)
++        } finally { packet.fill(0) }
++    }
++
++    override fun toString() = "PilotKeyImportSession(privateKey=redacted)"
+ }
+ 
+ /** Explicit payload allowlist. Never send or serialize WatchProgress itself. */
+@@ -180,6 +230,16 @@
+         return copy(pending = pending - keys)
+     }
+ 
++    /** Explicit key repair only: retire old hashes, retain the revision floor, never touch playback progress. */
++    internal fun forKeyRepair(previousEpoch: String, newEpoch: String, sequenceFloor: Long): PilotJournal {
++        require(UUID.fromString(previousEpoch).toString() == previousEpoch &&
++            UUID.fromString(newEpoch).toString() == newEpoch && previousEpoch != newEpoch)
++        require(issue == null && pending.isEmpty() && sequenceFloor >= 0 && sequence == sequenceFloor)
++        require(epoch == previousEpoch || (this == PilotJournal() && sequenceFloor == 0L) ||
++            (epoch == newEpoch && fingerprints.isEmpty() && capturedTimes.isEmpty()))
++        return PilotJournal(epoch = newEpoch, sequence = sequence)
++    }
++
+     companion object {
+         const val MAX_KEYS = 4096
+         const val MAX_JSON_CHARS = 4 * 1024 * 1024
+@@ -226,6 +286,8 @@
+     fun observe(profileId: Int): Flow<PilotJournal>
+     suspend fun profileInstanceId(profileId: Int): String?
+     suspend fun acknowledge(scope: PilotScope, sent: Collection<PilotOperation>, acks: Collection<PilotAcknowledgement>)
++    suspend fun repairKeyEpoch(scope: PilotScope, previousEpoch: String, sequenceFloor: Long): PilotJournal =
++        error("Réassociation indisponible dans cette file.")
+ }
+ 
+ internal interface PilotDeliveryAccess {
+diff --git a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotActivity.kt b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotActivity.kt
+--- a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotActivity.kt
++++ b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotActivity.kt
+@@ -6,6 +6,7 @@
+ import android.graphics.Rect
+ import android.graphics.drawable.GradientDrawable
+ import android.os.Bundle
++import android.util.Base64
+ import android.text.InputType
+ import android.view.WindowManager
+ import android.view.inputmethod.InputMethodManager
+@@ -41,6 +42,7 @@
+     private lateinit var connectionFeedback: TextView
+     private val commands = mutableListOf<Button>()
+     private var busy = false
++    private var keyReceiver: PilotKeyImportSession? = null
+ 
+     override fun onCreate(savedInstanceState: Bundle?) {
+         super.onCreate(savedInstanceState)
+@@ -114,6 +116,96 @@
+                     it.show()
+                 }
+         }
++        label("Vérification HMAC : utilise un défi commun et le code de référence du premier appareil. Sans vérification, aucune activation.")
++        val keyChallenge = input("Défi de vérification HMAC · UUID commun", "")
++        val keyReference = input("Code de référence HMAC · 64 caractères hexadécimaux", "")
++        val keyFeedback = label("Clé valide ne signifie pas correspondance vérifiée. La vérification est requise avant activation.")
++        label("Utilise le même code de référence sur les deux TV. Recopier le code d’un appareil sur lui-même ne vérifie pas l’autre TV.")
++        command("Afficher le code de référence local") {
++            val nonce = keyChallenge.text.toString().trim()
++            operation(keyFeedback, "Code local affiché. Compare-le avec l’autre appareil.",
++                runningMessage = "Calcul local…", failureMessage = "Vérifie le défi, NAS_ONLY et les identités associées.") {
++                services.runtime().keyCheckScope()
++                val code = services.store().localPairingCode(services.store().settings.value, nonce)
++                withContext(Dispatchers.Main) {
++                    AlertDialog.Builder(this@SupabaseProgressPilotActivity).setTitle("Code de référence HMAC")
++                        .setMessage("Défi public : $nonce\n\nCode de référence :\n$code\n\nCe code ne contient pas la clé secrète.")
++                        .setPositiveButton("Fermer", null).create().also {
++                            it.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE); it.show()
++                        }
++                }
++            }
++        }
++        command("Vérifier la clé enregistrée") {
++            val nonce = keyChallenge.text.toString().trim()
++            val reference = keyReference.text.toString().trim()
++            operation(keyFeedback, "Clé conforme au code de référence. Vérification enregistrée ; NAS_ONLY conservé.",
++                runningMessage = "Vérification locale…", failureMessage = "Vérification refusée : vérifie le défi, le code et les identités.") {
++                services.runtime().confirmKey(nonce, reference)
++            }
++        }
++        command("Vérifier la clé saisie avant enregistrement") {
++            val candidate = hmacKey.text.toString().trim()
++            val nonce = keyChallenge.text.toString().trim()
++            val reference = keyReference.text.toString().trim()
++            operation(keyFeedback, "La clé saisie correspond à la référence. Aucune clé enregistrée par ce contrôle.",
++                runningMessage = "Vérification locale de la saisie…", failureMessage = "Vérifie la clé, le défi et le code de référence.") {
++                services.runtime().keyCheckScope()
++                services.store().candidateKeyMatches(services.store().settings.value, candidate, nonce, reference)
++            }
++        }
++        val receiverToken = label("Réception chiffrée : non préparée")
++        val encryptedKey = input("Import chiffré temporaire · texte public", "")
++        command("Préparer la réception chiffrée de la clé conservée") {
++            operation(keyFeedback, "Réception prête pendant cinq minutes. Aucun secret envoyé ou enregistré.",
++                runningMessage = "Préparation locale…", failureMessage = "Réception refusée : vérifie NAS_ONLY et les identités.") {
++                val bound = services.runtime().keyCheckScope()
++                val receiver = PilotKeyImportSession(bound)
++                val token = receiver.publicToken { Base64.encodeToString(it, Base64.NO_WRAP) }
++                withContext(Dispatchers.Main) {
++                    keyReceiver = receiver
++                    encryptedKey.text.clear()
++                    receiverToken.text = "Réception chiffrée : $token"
++                }
++            }
++        }
++        command("Recevoir la clé chiffrée en mémoire") {
++            if (busy) return@command
++            val receiver = keyReceiver
++            val ciphertext = encryptedKey.text.toString().trim()
++            keyReceiver = null
++            operation(keyFeedback, "Clé reçue en mémoire. La correction exige encore une validation explicite.",
++                runningMessage = "Réception locale…", failureMessage = "Import refusé : prépare une nouvelle réception et vérifie le texte chiffré.") {
++                require(ciphertext.length <= 512)
++                val bound = services.runtime().keyCheckScope()
++                val bytes = requireNotNull(receiver).unwrap(Base64.decode(ciphertext, Base64.DEFAULT), bound)
++                try {
++                    val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
++                    withContext(Dispatchers.Main) {
++                        hmacKey.setText(encoded)
++                        encryptedKey.text.clear()
++                        receiverToken.text = "Réception chiffrée : utilisée ; prépare une nouvelle réception si nécessaire"
++                    }
++                } finally { bytes.fill(0) }
++            }
++        }
++        val repairConsent = CheckBox(this).apply {
++            text = "J’autorise la correction locale de la clé et l’isolation des anciennes empreintes techniques (file vide, NAS_ONLY)."
++            setTextColor(Color.WHITE)
++            isSaveEnabled = false
++        }
++        options.addView(repairConsent)
++        command("Corriger la clé de référence · NAS_ONLY") {
++            if (!repairConsent.isChecked) { showFeedback(keyFeedback, "Confirme explicitement la correction locale avant de continuer."); return@command }
++            val candidate = hmacKey.text.toString().trim()
++            val nonce = keyChallenge.text.toString().trim()
++            val reference = keyReference.text.toString().trim()
++            operation(keyFeedback, "Clé corrigée et conforme au code de référence. NAS_ONLY conservé ; aucune reprise importée.",
++                runningMessage = "Correction locale de la clé…", failureMessage = "Correction refusée : vérifie la file vide, les identités et la référence. Une réparation interrompue exige la même clé.") {
++                services.runtime().repairKey(candidate, nonce, reference)
++                withContext(Dispatchers.Main) { repairConsent.isChecked = false }
++            }
++        }
+         val approved = CheckBox(this).apply {
+             text = "Backend validé : migrations, tests RLS et deux sessions préassociées"
+             setTextColor(Color.WHITE)
+@@ -127,11 +219,13 @@
+             val second = deviceB.text.toString().trim()
+             val key = hmacKey.text.toString().trim()
+             val backendApproved = approved.isChecked
++            val nonce = keyChallenge.text.toString().trim()
++            val reference = keyReference.text.toString().trim()
+             operation {
+                 services.runtime().awaitLocalIdentity()
+                 require(selected != null && services.profiles().profiles.value.any { it.id == selected })
+                 val instance = services.preferences().getOrCreatePilotProfileInstanceId(selected)
+-                services.store().configure(selected, instance, profileBinding, first, second, key, backendApproved)
++                services.store().configure(selected, instance, profileBinding, first, second, key, backendApproved, nonce, reference)
+             }
+         }
+         command("Activer le miroir pour les futurs checkpoints") {
+@@ -206,6 +300,7 @@
+                     "Profil associé : ${current.scope?.localProfileId ?: "aucun"}\n" +
+                     "Dernier accusé : ${current.lastAckMs.takeIf { it > 0 } ?: "aucun"}\n" +
+                     "Diagnostic : ${journal.issue ?: current.lastIssue ?: "aucune erreur"}\n" +
++                    "Vérification HMAC : ${if (current.keyRepairFromEpoch.isNotEmpty()) "réparation à terminer" else if (current.keyCheckEpoch.isNotEmpty() && current.keyCheckEpoch == current.scope?.epoch) "code de référence validé" else "requise avant activation"}\n" +
+                     "Aucun import initial. Aucune lecture de progression depuis Supabase."
+                 withContext(Dispatchers.Main) {
+                     status.text = description
+@@ -234,9 +329,14 @@
+                 if (isDestroyed) return@withContext
+                 busy = false
+                 commands.forEach { it.isEnabled = true }
++                val keyFailure = when (failure) {
++                    is PilotKeyMismatch -> "La clé ne correspond pas au code de référence de l’autre appareil. Activation bloquée."
++                    is PilotKeyCheckRequired -> "Vérifie la correspondance de la clé avant d’activer le miroir."
++                    else -> null
++                }
+                 if (feedback != null) showFeedback(feedback,
+-                    if (failure == null) success ?: "Commande terminée." else failureMessage ?: pilotSignInFailureMessage(failure))
+-                else if (failure != null) status.text = if (failure is PilotHttpFailure) "Supabase HTTP ${failure.status}" else
++                    if (failure == null) success ?: "Commande terminée." else keyFailure ?: failureMessage ?: pilotSignInFailureMessage(failure))
++                else if (failure != null) status.text = keyFailure ?: if (failure is PilotHttpFailure) "Supabase HTTP ${failure.status}" else
+                     "Commande refusée. Vérifie la session, l'association et la validation de la migration."
+             }
+         }
+@@ -261,6 +361,8 @@
+     private fun input(hint: String, value: String, secret: Boolean = false,
+                       type: Int = InputType.TYPE_CLASS_TEXT): EditText = EditText(this).apply {
+         this.hint = hint
++        isSaveEnabled = !secret
++        if (!secret) contentDescription = hint
+         setText(value)
+         setSingleLine(true)
+         inputType = if (secret) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD else type
+@@ -291,5 +393,5 @@
+ 
+     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+ 
+-    override fun onDestroy() { jobs.cancel(); super.onDestroy() }
++    override fun onDestroy() { keyReceiver = null; jobs.cancel(); super.onDestroy() }
+ }
+diff --git a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotRuntime.kt b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotRuntime.kt
+--- a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotRuntime.kt
++++ b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotRuntime.kt
+@@ -160,6 +160,42 @@
+         store.activate()
+     }
+ 
++    internal suspend fun keyCheckScope(): PilotScope {
++        awaitLocalIdentity()
++        val expected = store.settings.value
++        val bound = store.keyScope(expected)
++        require(profiles.activeProfileReady.value && profiles.activeProfileId.value == bound.localProfileId &&
++            queue.profileInstanceId(bound.localProfileId) == bound.localProfileInstanceId)
++        return bound
++    }
++
++    internal suspend fun confirmKey(challenge: String, reference: String) = withContext(Dispatchers.IO) {
++        deliveryMutex.withLock {
++            val bound = keyCheckScope()
++            val expected = store.settings.value
++            val journal = queue.observe(bound.localProfileId).first()
++            require(keyCheckScope() == bound)
++            store.confirmKey(expected, journal, challenge, reference)
++        }
++    }
++
++    internal suspend fun repairKey(candidate: String, challenge: String, reference: String) = withContext(Dispatchers.IO) {
++        deliveryMutex.withLock {
++            val bound = keyCheckScope()
++            val expected = store.settings.value
++            val journal = queue.observe(bound.localProfileId).first()
++            require(keyCheckScope() == bound)
++            val prepared = store.beginKeyRepair(expected, journal, candidate, challenge, reference)
++            if (prepared.keyRepairFromEpoch.isNotEmpty()) {
++                cancelPilotWork()
++                val repaired = queue.repairKeyEpoch(requireNotNull(prepared.scope),
++                    prepared.keyRepairFromEpoch, prepared.keyRepairSequence)
++                require(keyCheckScope() == prepared.scope)
++                store.finishKeyRepair(prepared, repaired, challenge, reference)
++            }
++        }
++    }
++
+     fun disable(issue: String? = null) {
+         try { store.disable(issue) } finally { cancelPilotWork() }
+     }
+diff --git a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotStore.kt b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotStore.kt
+--- a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotStore.kt
++++ b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotStore.kt
+@@ -45,7 +45,12 @@
+     val registeredSessionId: String = "",
+     val nextAttemptMs: Long = 0,
+     val lastAckMs: Long = 0,
+-    val lastIssue: String? = null
++    val lastIssue: String? = null,
++    val keyCheckEpoch: String = "",
++    val keyCheckChallenge: String = "",
++    val keyCheckCode: String = "",
++    val keyRepairFromEpoch: String = "",
++    val keyRepairSequence: Long = 0
+ ) {
+     // Activation is a process-local opt-in. Even an old active file must reopen stopped.
+     internal fun stoppedForPersistence() = copy(mode = PilotMode.NAS_ONLY)
+@@ -61,11 +66,28 @@
+         val bound = requireNotNull(scope) { "Association locale absente." }
+         bound.validate()
+         require(session?.ownerId == bound.ownerId && deviceId == bound.deviceId) { "Compte ou appareil différent." }
++        require(keyRepairFromEpoch.isEmpty()) { "Termine la réassociation de la clé." }
+         require(journal.issue == null && (journal.epoch == bound.epoch || journal == PilotJournal())) {
+             "Le journal ne correspond pas à cette association."
+         }
+         return bound
+     }
++
++    internal fun withoutKeyCheck() = copy(keyCheckEpoch = "", keyCheckChallenge = "", keyCheckCode = "")
++
++    internal fun checkedKey(context: PilotCaptureContext, challenge: String, reference: String): PilotLocalSettings {
++        require(context.scope == scope)
++        val code = reference.trim().lowercase(java.util.Locale.ROOT)
++        require(code.matches(Regex("[0-9a-f]{64}"))) { "Code de référence invalide." }
++        if (!MessageDigest.isEqual(context.pairingKeyCode(challenge).toByteArray(Charsets.US_ASCII),
++                code.toByteArray(Charsets.US_ASCII))) throw PilotKeyMismatch()
++        return copy(keyCheckEpoch = context.scope.epoch, keyCheckChallenge = challenge, keyCheckCode = code)
++    }
++
++    internal fun keyCheckMatches(context: PilotCaptureContext): Boolean = try {
++        keyRepairFromEpoch.isEmpty() && keyCheckEpoch.isNotEmpty() && keyCheckEpoch == scope?.epoch &&
++            context.scope == scope && checkedKey(context, keyCheckChallenge, keyCheckCode) == this
++    } catch (_: Exception) { false }
+ 
+     override fun toString() = "PilotLocalSettings(mode=$mode, secrets=redacted)"
+ }
+@@ -160,14 +182,16 @@
+         if (previous.everActivated) require(previous.endpoint == endpoint && previous.scope?.ownerId == session.ownerId) {
+             "Le projet et le propriétaire de ce pilote sont figés."
+         }
+-        save(previous.copy(endpoint = endpoint, session = session, registeredSessionId = "", lastIssue = null))
++        save(previous.copy(endpoint = endpoint, session = session, registeredSessionId = "", lastIssue = null).withoutKeyCheck())
+     }
+ 
+     fun configure(profileId: Int, profileInstance: String, profileBinding: String, deviceA: String,
+-                  deviceB: String, linkKey: String, backendApproved: Boolean) = synchronized(lock) {
++                  deviceB: String, linkKey: String, backendApproved: Boolean,
++                  challenge: String = "", reference: String = "") = synchronized(lock) {
+         checkAvailable()
+         val previous = state.value
+         require(previous.mode == PilotMode.NAS_ONLY) { "Désactive le pilote avant de modifier l'association." }
++        require(previous.keyRepairFromEpoch.isEmpty()) { "Termine la réassociation de la clé." }
+         val session = previous.session ?: error("Connecte le compte Supabase de test.")
+         require(currentNasAuthority.isNotEmpty()) { "Une session NAS de référence est requise." }
+         val secret = try { Base64.decode(linkKey.trim(), Base64.DEFAULT) } catch (_: Exception) { error("Clé HMAC invalide.") }
+@@ -176,15 +200,21 @@
+             previous.deviceId, deviceA.trim(), deviceB.trim(), previous.scope?.epoch ?: UUID.randomUUID().toString())
+         scope.validate()
+         val normalizedKey = Base64.encodeToString(secret, Base64.NO_WRAP)
++        secret.fill(0)
++        val next = previous.copy(scope = scope, hmacKeyBase64 = normalizedKey, nasAuthorityDigest = currentNasAuthority,
++            backendApproved = backendApproved, registeredSessionId = "", nextAttemptMs = 0, lastIssue = null).withoutKeyCheck()
++        val checked = if (reference.isBlank()) next else next.checkedKey(keyContext(next), challenge, reference)
+         if (previous.everActivated) require(previous.scope == scope && previous.hmacKeyBase64 == normalizedKey &&
+             previous.nasAuthorityDigest == currentNasAuthority) { "L'association de ce pilote est figée après activation." }
+-        save(previous.copy(scope = scope, hmacKeyBase64 = normalizedKey, nasAuthorityDigest = currentNasAuthority,
+-            backendApproved = backendApproved, registeredSessionId = "", nextAttemptMs = 0, lastIssue = null))
++        save(checked)
+     }
+ 
+     fun activate() = synchronized(lock) {
+         checkAvailable()
+         val configured = state.value
++        if (configured.keyCheckEpoch.isEmpty() || configured.keyRepairFromEpoch.isNotEmpty()) throw PilotKeyCheckRequired()
++        val verified = keyContext(configured)
++        if (!configured.keyCheckMatches(verified)) throw PilotKeyCheckRequired()
+         require(configured.backendApproved) { "La migration Supabase doit d'abord être validée et installée." }
+         require(configured.scope != null && configured.session?.ownerId == configured.scope.ownerId &&
+             configured.nasAuthorityDigest == currentNasAuthority && currentNasAuthority.isNotEmpty()) {
+@@ -217,8 +247,89 @@
+             currentNasAuthority.isEmpty() || currentNasAuthority != current.nasAuthorityDigest ||
+             current.session?.ownerId != current.scope?.ownerId) return null
+         val scope = current.scope ?: return null
+-        try { PilotCaptureContext(scope, activationBarrier, Base64.decode(current.hmacKeyBase64, Base64.DEFAULT), activationId) }
++        try {
++            val capture = PilotCaptureContext(scope, activationBarrier, Base64.decode(current.hmacKeyBase64, Base64.DEFAULT), activationId)
++            capture.takeIf { current.keyCheckMatches(it) }
++        }
+         catch (_: Exception) { null }
++    }
++
++    private fun keyContext(configured: PilotLocalSettings, candidate: String = configured.hmacKeyBase64): PilotCaptureContext {
++        val secret = try { Base64.decode(candidate.trim(), Base64.DEFAULT) }
++            catch (_: Exception) { error("Clé HMAC invalide.") }
++        try { return PilotCaptureContext(requireNotNull(configured.scope), Long.MAX_VALUE, secret) }
++        finally { secret.fill(0) }
++    }
++
++    internal fun keyScope(expected: PilotLocalSettings): PilotScope = synchronized(lock) {
++        checkAvailable()
++        require(state.value === expected && expected.mode == PilotMode.NAS_ONLY)
++        val bound = requireNotNull(expected.scope)
++        bound.validate()
++        require(expected.deviceId == bound.deviceId && expected.session?.ownerId == bound.ownerId &&
++            currentNasAuthority.isNotEmpty() && expected.nasAuthorityDigest == currentNasAuthority)
++        bound
++    }
++
++    internal fun confirmKey(expected: PilotLocalSettings, journal: PilotJournal, challenge: String, reference: String) = synchronized(lock) {
++        keyScope(expected)
++        save(expected.withoutKeyCheck()) // A failed attempt must not leave a previous confirmation usable.
++        val current = state.value
++        current.validateLocalDiagnostic(journal)
++        save(current.checkedKey(keyContext(current), challenge, reference))
++    }
++
++    internal fun localPairingCode(expected: PilotLocalSettings, challenge: String): String = synchronized(lock) {
++        keyScope(expected)
++        keyContext(expected).pairingKeyCode(challenge)
++    }
++
++    internal fun candidateKeyMatches(expected: PilotLocalSettings, candidate: String,
++                                     challenge: String, reference: String) = synchronized(lock) {
++        keyScope(expected)
++        expected.checkedKey(keyContext(expected, candidate), challenge, reference)
++        Unit
++    }
++
++    internal fun beginKeyRepair(expected: PilotLocalSettings, journal: PilotJournal, candidate: String,
++                                challenge: String, reference: String): PilotLocalSettings = synchronized(lock) {
++        val bound = keyScope(expected)
++        requests.stop()
++        deliveryPermit = null
++        activationId = ""
++        save(expected.withoutKeyCheck())
++        val current = state.value
++        require(journal.issue == null && journal.pending.isEmpty()) { "La file doit être saine et vide." }
++        require(journal.epoch.isNotEmpty() || !current.everActivated) { "Compteur technique manquant." }
++        val secret = try { Base64.decode(candidate.trim(), Base64.DEFAULT) } catch (_: Exception) { error("Clé HMAC invalide.") }
++        val normalized = try {
++            require(secret.size == 32) { "Clé HMAC invalide." }
++            Base64.encodeToString(secret, Base64.NO_WRAP)
++        } finally { secret.fill(0) }
++        val checked = current.checkedKey(keyContext(current, normalized), challenge, reference)
++        if (current.keyRepairFromEpoch.isNotEmpty()) {
++            require(current.hmacKeyBase64 == normalized) { "Termine la réparation en attente avec la même clé." }
++            return@synchronized current
++        }
++        current.validateLocalDiagnostic(journal)
++        if (current.hmacKeyBase64 == normalized) {
++            save(checked)
++            return@synchronized state.value
++        }
++        save(current.copy(scope = bound.copy(epoch = UUID.randomUUID().toString()), hmacKeyBase64 = normalized,
++            keyCheckChallenge = checked.keyCheckChallenge, keyCheckCode = checked.keyCheckCode,
++            keyRepairFromEpoch = bound.epoch, keyRepairSequence = journal.sequence,
++            registeredSessionId = "", nextAttemptMs = 0, lastIssue = "KEY_REPAIR_PENDING"))
++        state.value
++    }
++
++    internal fun finishKeyRepair(expected: PilotLocalSettings, journal: PilotJournal, challenge: String, reference: String) = synchronized(lock) {
++        val bound = keyScope(expected)
++        require(expected.keyRepairFromEpoch.isNotEmpty() && journal.epoch == bound.epoch &&
++            journal.sequence == expected.keyRepairSequence && journal.pending.isEmpty() && journal.issue == null &&
++            journal.fingerprints.isEmpty() && journal.capturedTimes.isEmpty())
++        val completed = expected.copy(keyRepairFromEpoch = "", keyRepairSequence = 0, lastIssue = null)
++        save(completed.checkedKey(keyContext(completed), challenge, reference))
+     }
+ 
+     /** Uses the saved key, not edited form values. No save(), request permit or mode change. */
+@@ -243,7 +354,7 @@
+         requests.stop()
+         deliveryPermit = null
+         activationId = ""
+-        save(state.value.copy(mode = PilotMode.NAS_ONLY, session = null, registeredSessionId = "", lastIssue = null))
++        save(state.value.copy(mode = PilotMode.NAS_ONLY, session = null, registeredSessionId = "", lastIssue = null).withoutKeyCheck())
+     }
+ 
+     fun markRegistered(expected: PilotScope, sessionId: String) = synchronized(lock) {
+diff --git a/app/src/main/java/com/nuvio/tv/data/local/WatchProgressPreferences.kt b/app/src/main/java/com/nuvio/tv/data/local/WatchProgressPreferences.kt
+--- a/app/src/main/java/com/nuvio/tv/data/local/WatchProgressPreferences.kt
++++ b/app/src/main/java/com/nuvio/tv/data/local/WatchProgressPreferences.kt
+@@ -115,6 +115,18 @@
+         override suspend fun profileInstanceId(profileId: Int) = pilotProfileInstanceId(profileId)
+         override suspend fun acknowledge(scope: PilotScope, sent: Collection<PilotOperation>,
+                                          acks: Collection<PilotAcknowledgement>) = acknowledgePilotOperations(scope, sent, acks)
++        override suspend fun repairKeyEpoch(scope: PilotScope, previousEpoch: String, sequenceFloor: Long): PilotJournal {
++            require(pilotProfileInstanceId(scope.localProfileId) == scope.localProfileInstanceId)
++            val delivery = requireNotNull(pilotDeliveryStore(scope.localProfileId))
++            var repaired: PilotJournal? = null
++            delivery.edit { prefs ->
++                require(pilotProfileInstanceId(scope.localProfileId) == scope.localProfileInstanceId)
++                require(pilotCaptureIssues.value[scope.localProfileId] == null && prefs[pilotIssueKey] == null)
++                repaired = PilotJson.decode(prefs[pilotOutboxKey]).forKeyRepair(previousEpoch, scope.epoch, sequenceFloor)
++                prefs[pilotOutboxKey] = PilotJson.encode(requireNotNull(repaired))
++            }
++            return requireNotNull(repaired)
++        }
+     }
+ 
+     private fun pilotContext(profileId: Int, profileInstance: String?): PilotCaptureContext? {
+@@ -138,6 +150,10 @@
+                         return@launch
+                     val delivery = pilotDeliveryStore(profileId) ?: return@launch
+                     delivery.edit { prefs ->
++                        val admitted = pilotContext(profileId, profileInstance)
++                        if (admitted?.scope != context.scope ||
++                            admitted.activationBarrierElapsedMs != context.activationBarrierElapsedMs ||
++                            admitted.activationId != context.activationId) return@edit
+                         try {
+                             val journal = PilotJson.decode(prefs[pilotOutboxKey]).enqueue(context, payload)
+                             prefs[pilotOutboxKey] = PilotJson.encode(journal)
+diff --git a/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressCaptureTest.kt b/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressCaptureTest.kt
+--- a/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressCaptureTest.kt
++++ b/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressCaptureTest.kt
+@@ -8,6 +8,7 @@
+ import com.nuvio.tv.data.local.WatchProgressPreferences
+ import com.nuvio.tv.domain.model.WatchProgress
+ import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.CompletableDeferred
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.Job
+ import kotlinx.coroutines.SupervisorJob
+@@ -26,6 +27,7 @@
+ import java.io.File
+ import java.io.IOException
+ import java.util.UUID
++import java.util.concurrent.atomic.AtomicBoolean
+ 
+ class SupabaseProgressCaptureTest {
+     @get:Rule val temporary = TemporaryFolder()
+@@ -44,6 +46,44 @@
+ 
+     @After fun tearDown() = runBlocking { io.cancel(); jobs.join() }
+ 
++    @Test fun delayedCaptureCannotPolluteKeyRepairWhileNasProgressIsPreserved() = runBlocking {
++        val realDelivery = delivery(1)
++        val waiting = CompletableDeferred<Unit>()
++        val release = CompletableDeferred<Unit>()
++        val finished = CompletableDeferred<Unit>()
++        val firstWrite = AtomicBoolean(true)
++        val delayed = object : DataStore<Preferences> {
++            override val data = realDelivery.data
++            override suspend fun updateData(transform: suspend (Preferences) -> Preferences): Preferences {
++                if (!firstWrite.compareAndSet(true, false)) return realDelivery.updateData(transform)
++                waiting.complete(Unit)
++                release.await()
++                try { return realDelivery.updateData(transform) }
++                finally { finished.complete(Unit) }
++            }
++        }
++        preferences = WatchProgressPreferences(::local, activeProfile, { capture }, { delayed })
++        enroll()
++        val previous = requireNotNull(capture).scope
++        val outboxKey = androidx.datastore.preferences.core.stringPreferencesKey("progress_pilot_delivery_outbox")
++        realDelivery.edit { it[outboxKey] = PilotJson.encode(PilotJournal(epoch = previous.epoch, sequence = 42)) }
++        val progress = SupabaseProgressPilotTest.progress()
++        try {
++            saveCheckpoint(progress)
++            withTimeout(5000) { waiting.await() }
++            capture = null // Explicit NAS_ONLY before key repair.
++            val bound = previous.copy(epoch = UUID.randomUUID().toString())
++            val repaired = preferences.pilotDeliveryQueue().repairKeyEpoch(bound, previous.epoch, 42)
++            release.complete(Unit)
++            withTimeout(5000) { finished.await() }
++            assertEquals(repaired, preferences.observePilotDelivery(1).first())
++            assertEquals(42L, repaired.sequence)
++            assertNull(repaired.issue)
++            assertTrue(repaired.pending.isEmpty())
++            assertEquals(progress, preferences.getAllRawEntries()[progress.storageKey])
++        } finally { release.complete(Unit) }
++    }
++
+     @Test fun nasOnlyPreservesProgressWithoutCreatingDeliveryFile() = runBlocking {
+         val progress = SupabaseProgressPilotTest.progress()
+         saveCheckpoint(progress)
+diff --git a/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressPilotTest.kt b/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressPilotTest.kt
+--- a/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressPilotTest.kt
++++ b/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressPilotTest.kt
+@@ -25,6 +25,137 @@
+     private val endpoint = PilotEndpoint("https://pilot-test.supabase.co", "sb_publishable_test")
+     private val session = PilotAuthSession(OWNER, SESSION, "supabase-test-token", "supabase-refresh", 10_000)
+ 
++    @Test fun pairingProofMatchesAcrossDevicesAndChangesWithKeyOwnerProfileOrPair() {
++        val nonce = "00000000-0000-4000-8000-000000000099"
++        val code = context.pairingKeyCode(nonce)
++        // Independent Python hmac + uint32 big-endian UTF-8 framing, synthetic key only.
++        assertEquals("66e1b527d91dd40ee11e436042998d98dfb16f4caef686a92c0eb8029002ce00", code)
++        assertEquals(code, PilotCaptureContext(binding.copy(deviceId = DEVICE_B, epoch = OTHER_OWNER), 900,
++            ByteArray(32) { it.toByte() }).pairingKeyCode(nonce))
++        for (scope in listOf(binding.copy(ownerId = OTHER_OWNER), binding.copy(profileBindingId = OTHER_OWNER),
++                binding.copy(deviceB = OTHER_OWNER)))
++            assertNotEquals(code, PilotCaptureContext(scope, 100, ByteArray(32) { it.toByte() }).pairingKeyCode(nonce))
++        assertNotEquals(code, PilotCaptureContext(binding, 100, ByteArray(32) { 9 }).pairingKeyCode(nonce))
++        assertNotEquals(code, context.pairingKeyCode("00000000-0000-4000-8000-000000000098"))
++        assertNotEquals(code, context.localDiagnostic(nonce, PilotJournal()).keyCode)
++    }
++
++    @Test fun validBase64KeyWithoutReferenceCannotBecomeVerified() {
++        val saved = PilotLocalSettings(deviceId = DEVICE_A, scope = binding, session = session,
++            hmacKeyBase64 = Base64.getEncoder().encodeToString(ByteArray(32) { it.toByte() }))
++        assertFalse(saved.keyCheckMatches(context))
++        assertTrue(runCatching { saved.checkedKey(context, "00000000-0000-4000-8000-000000000099", "") }.isFailure)
++        val failure = runCatching { saved.checkedKey(context, "00000000-0000-4000-8000-000000000099", "a".repeat(64)) }.exceptionOrNull()
++        assertTrue(failure is PilotKeyMismatch)
++        assertFalse(failure.toString().contains(saved.hmacKeyBase64))
++    }
++
++    @Test fun keyConfirmationIsBoundToStoredKeyEpochAndPublicContext() {
++        val nonce = "00000000-0000-4000-8000-000000000099"
++        val saved = PilotLocalSettings(deviceId = DEVICE_A, scope = binding, session = session)
++        val checked = saved.checkedKey(context, nonce, context.pairingKeyCode(nonce).uppercase())
++        assertTrue(checked.keyCheckMatches(context))
++        assertFalse(checked.withoutKeyCheck().keyCheckMatches(context))
++        assertFalse(checked.copy(keyCheckEpoch = OTHER_OWNER).keyCheckMatches(context))
++        assertFalse(checked.copy(keyRepairFromEpoch = EPOCH).keyCheckMatches(context))
++        assertFalse(checked.keyCheckMatches(PilotCaptureContext(binding, 100, ByteArray(32) { 9 })))
++        assertFalse(checked.toString().contains(checked.keyCheckCode))
++    }
++
++    @Test fun legacyConfigurationReopensStoppedAndUnverified() {
++        val legacy = "{\"deviceId\":\"$DEVICE_A\",\"mode\":\"NAS_WITH_SUPABASE_MIRROR\"}"
++        val restored = PilotJson.gson.fromJson(legacy, PilotLocalSettings::class.java).stoppedForPersistence()
++        assertEquals(PilotMode.NAS_ONLY, restored.mode)
++        assertEquals("", restored.keyCheckEpoch)
++        assertEquals("", restored.keyRepairFromEpoch)
++        assertEquals(0L, restored.keyRepairSequence)
++        assertFalse(restored.keyCheckMatches(context))
++    }
++
++    @Test fun keyRepairPreservesRevisionFloorRetiresOnlyTechnicalHashesAndIsIdempotent() {
++        val original = PilotJournal(epoch = EPOCH, sequence = 42,
++            fingerprints = mapOf("a".repeat(64) to "b".repeat(64)), capturedTimes = mapOf("a".repeat(64) to 1000))
++        val repaired = original.forKeyRepair(EPOCH, OTHER_OWNER, 42)
++        assertEquals(42L, repaired.sequence)
++        assertEquals(OTHER_OWNER, repaired.epoch)
++        assertTrue(repaired.fingerprints.isEmpty() && repaired.capturedTimes.isEmpty() && repaired.pending.isEmpty())
++        assertEquals(repaired, repaired.forKeyRepair(EPOCH, OTHER_OWNER, 42))
++        assertEquals(1, original.fingerprints.size)
++        val next = repaired.enqueue(PilotCaptureContext(binding.copy(epoch = OTHER_OWNER), 100, ByteArray(32)), payload())
++        assertEquals(43L, next.sequence)
++    }
++
++    @Test fun keyRepairRefusesPendingCorruptionLostCounterAndForeignEpoch() {
++        val pending = PilotJournal().enqueue(context, payload())
++        assertTrue(runCatching { pending.forKeyRepair(EPOCH, OTHER_OWNER, pending.sequence) }.isFailure)
++        assertTrue(runCatching { PilotJournal(epoch = EPOCH, issue = "OUTBOX_UNREADABLE").forKeyRepair(EPOCH, OTHER_OWNER, 0) }.isFailure)
++        assertTrue(runCatching { PilotJournal().forKeyRepair(EPOCH, OTHER_OWNER, 42) }.isFailure)
++        assertTrue(runCatching { PilotJournal(epoch = DEVICE_A).forKeyRepair(EPOCH, OTHER_OWNER, 0) }.isFailure)
++        assertTrue(runCatching { PilotJournal(epoch = EPOCH, sequence = 2).forKeyRepair(EPOCH, OTHER_OWNER, 1) }.isFailure)
++        assertTrue(runCatching { PilotJournal(epoch = OTHER_OWNER, fingerprints = mapOf("a" to "b"))
++            .forKeyRepair(EPOCH, OTHER_OWNER, 0) }.isFailure)
++    }
++
++    @Test fun oldAcknowledgementCannotAlterRepairedJournal() {
++        val old = PilotJournal().enqueue(context, payload())
++        val sent = old.pending.values.single()
++        val empty = old.acknowledge(EPOCH, listOf(sent), listOf(PilotAcknowledgement(sent.operation_id, sent.revision, "applied")))
++        val repaired = empty.forKeyRepair(EPOCH, OTHER_OWNER, 1)
++            .enqueue(PilotCaptureContext(binding.copy(epoch = OTHER_OWNER), 100, ByteArray(32)), payload())
++        assertEquals(repaired, repaired.acknowledge(EPOCH, listOf(sent),
++            listOf(PilotAcknowledgement(sent.operation_id, sent.revision, "applied"))))
++        assertEquals(2L, repaired.sequence)
++    }
++
++    @Test fun interruptedRepairPersistsClosedAndRetainsSequenceFloor() {
++        val pending = PilotLocalSettings(deviceId = DEVICE_A, scope = binding.copy(epoch = OTHER_OWNER), session = session,
++            keyRepairFromEpoch = EPOCH, keyRepairSequence = 42, lastIssue = "KEY_REPAIR_PENDING")
++        val restored = PilotJson.gson.fromJson(PilotJson.gson.toJson(pending), PilotLocalSettings::class.java).stoppedForPersistence()
++        assertEquals(PilotMode.NAS_ONLY, restored.mode)
++        assertEquals(42L, restored.keyRepairSequence)
++        assertFalse(restored.keyCheckMatches(PilotCaptureContext(requireNotNull(restored.scope), 100, ByteArray(32))))
++        assertTrue(runCatching { restored.validateLocalDiagnostic(PilotJournal(epoch = OTHER_OWNER)) }.isFailure)
++    }
++
++    @Test fun sealedImportReturnsOnlySyntheticKeyAndRejectsAnotherReceiver() {
++        val receiver = PilotKeyImportSession(binding)
++        val secret = ByteArray(32) { it.toByte() }
++        val sealed = sealSyntheticKey(receiver, secret)
++        assertArrayEquals(secret, receiver.unwrap(sealed, binding))
++        assertTrue(runCatching { receiver.unwrap(sealed, binding) }.isFailure)
++        assertTrue(runCatching { PilotKeyImportSession(binding).unwrap(sealed, binding) }.isFailure)
++        assertTrue(runCatching { receiver.unwrap(sealed, binding.copy(deviceId = DEVICE_B)) }.isFailure)
++        assertFalse(receiver.toString().contains(Base64.getEncoder().encodeToString(secret)))
++    }
++
++    @Test fun sealedImportRefusesExpiryCorruptionAndInvalidSize() {
++        var now = 100L
++        val receiver = PilotKeyImportSession(binding) { now }
++        val sealed = sealSyntheticKey(receiver, ByteArray(32))
++        assertTrue(runCatching { receiver.unwrap(sealed.copyOf(255), binding) }.isFailure)
++        val corruptReceiver = PilotKeyImportSession(binding)
++        val corruptPacket = sealSyntheticKey(corruptReceiver, ByteArray(32)).apply { this[40] = (this[40].toInt() xor 1).toByte() }
++        assertTrue(runCatching { corruptReceiver.unwrap(corruptPacket, binding) }.isFailure)
++        val expiring = PilotKeyImportSession(binding) { now }
++        val expiringPacket = sealSyntheticKey(expiring, ByteArray(32))
++        now += 300_001
++        assertTrue(runCatching { expiring.unwrap(expiringPacket, binding) }.isFailure)
++    }
++
++    private fun sealSyntheticKey(receiver: PilotKeyImportSession, key: ByteArray): ByteArray {
++        val parts = receiver.publicToken { Base64.getEncoder().encodeToString(it) }.split('|')
++        val nonce = java.util.UUID.fromString(parts[1])
++        val nonceBytes = java.nio.ByteBuffer.allocate(16).putLong(nonce.mostSignificantBits).putLong(nonce.leastSignificantBits).array()
++        val bindingBytes = parts[2].chunked(2).map { it.toInt(16).toByte() }.toByteArray()
++        val publicKey = java.security.KeyFactory.getInstance("RSA").generatePublic(
++            java.security.spec.X509EncodedKeySpec(Base64.getDecoder().decode(parts[3])))
++        val cipher = javax.crypto.Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding")
++        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, publicKey,
++            javax.crypto.spec.OAEPParameterSpec("SHA-256", "MGF1", java.security.spec.MGF1ParameterSpec.SHA256,
++                javax.crypto.spec.PSource.PSpecified.DEFAULT))
++        return cipher.doFinal(nonceBytes + bindingBytes + key)
++    }
++
+     @Test fun localDiagnosticMatchesIndependentReferenceAndDoesNotExposeRawIdentity() {
+         val challenge = "00000000-0000-4000-8000-000000000099"
+         val journal = PilotJournal(epoch = EPOCH, fingerprints = mapOf("a".repeat(64) to "technical-fingerprint"))

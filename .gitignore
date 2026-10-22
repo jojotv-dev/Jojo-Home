@@ -1,0 +1,74 @@
+.gradle/
+build/
+app/build/
+local.properties
+*.apk
+*.aab
+
+# Local tools, IDE state and dependency caches.
+.kotlin/
+.idea/
+.vscode/
+.venv/
+.codex/
+.agents/
+__pycache__/
+*.py[cod]
+node_modules/
+.next/
+dist/
+
+# Machine-specific configuration and credentials.
+.env
+.env.*
+*.jks
+*.keystore
+*.pem
+*.key
+*.p12
+*.pfx
+/opencode.json
+/Sol Advisor.txt
+
+# Local drafts, original artwork copies and diagnostic output.
+/tmp/
+/archives/
+/Animaux/
+/Famille/
+/cmd/
+/*.png
+/*.jpg
+/*.jpeg
+/*.webp
+/*.gif
+*.log
+*.trace
+*.har
+*.tmb
+*.zip
+*.7z
+*.tar.gz
+*.bak
+*.bak[0-9]
+*.orig
+*.rej
+*.code-workspace
+/jojohome-web/analysis/
+
+# Keep the NAS runtime sources and assets, not captured data or previews.
+/output/*
+!/output/nas/
+/output/nas/*
+!/output/nas/server.js
+!/output/nas/sync-sqlite-store.js
+!/output/nas/*.test.js
+!/output/nas/ui-avatars/
+!/output/nas/web-player/
+
+# Keep the reviewed note for the future rename correction.
+!/output/pdf/
+/output/pdf/*
+!/output/pdf/jojo-home-renommage-nuvio-vers-jojotv.pdf
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+graft/

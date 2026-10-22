@@ -1,0 +1,8 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Android TV / Material "delete_outline" -->
+    <path android:fillColor="#1B315B" android:pathData="M6,19C6,20.1 6.9,21 8,21L16,21C17.1,21 18,20.1 18,19L18,7L6,7ZM8,9L16,9L16,19L8,19ZM15.5,4L14.5,3L9.5,3L8.5,4L5,4L5,6L19,6L19,4Z" />
+</vector>

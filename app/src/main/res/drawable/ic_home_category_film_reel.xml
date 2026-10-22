@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M29,37H43.5a2,2 0,0 1 0,4H29Z" />
+    <!-- Circular cutouts stay transparent when the category focus tint changes. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M21.5,4a18.5,18.5 0,1 1 0,37a18.5,18.5 0,1 1 0,-37Z M21.5,9.1a4.4,4.4 0,1 1 0,8.8a4.4,4.4 0,1 1 0,-8.8Z M30.5,18.1a4.4,4.4 0,1 1 0,8.8a4.4,4.4 0,1 1 0,-8.8Z M21.5,27.1a4.4,4.4 0,1 1 0,8.8a4.4,4.4 0,1 1 0,-8.8Z M12.5,18.1a4.4,4.4 0,1 1 0,8.8a4.4,4.4 0,1 1 0,-8.8Z M21.5,20.7a1.8,1.8 0,1 1 0,3.6a1.8,1.8 0,1 1 0,-3.6Z" />
+</vector>

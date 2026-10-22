@@ -1,0 +1,1 @@
+function e(e){class t extends e{constructor(...e){super(...e),this.adapter.addEventListener(`sourcechange`,()=>this.#e())}#e(){let e=this.adapter.src;e?this.getAttribute(`src`)!==e&&this.setAttribute(`src`,e):this.hasAttribute(`src`)&&this.removeAttribute(`src`)}}return t}export{e as t};

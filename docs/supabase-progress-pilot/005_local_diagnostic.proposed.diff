@@ -1,0 +1,267 @@
+diff --git a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilot.kt b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilot.kt
+--- a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilot.kt
++++ b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilot.kt
+@@ -71,7 +71,50 @@
+         }
+     }
+ 
++    /** Explicit offline comparison of saved technical IDs; never reads playback progress. */
++    internal fun localDiagnostic(challenge: String, journal: PilotJournal): PilotLocalDiagnosticReport {
++        require(UUID.fromString(challenge).toString() == challenge) { "Défi UUID invalide." }
++        require(journal.issue == null && (journal.epoch == scope.epoch || journal == PilotJournal())) {
++            "Le journal ne correspond pas à cette association."
++        }
++        require(journal.fingerprints.size <= PilotJournal.MAX_KEYS)
++        val contentKeys = journal.fingerprints.keys
++        require(contentKeys.all { it.matches(Regex("[0-9a-f]{64}")) }) { "Identifiant technique invalide." }
++        val contentCodes = contentKeys.map {
++            diagnosticHmac("jojo-progress-pilot:diagnostic-content:v1", challenge, scope.profileBindingId, it)
++        }.sorted()
++        return PilotLocalDiagnosticReport(challenge, scope.profileBindingId,
++            diagnosticHmac("jojo-progress-pilot:diagnostic-key:v1", challenge),
++            contentCodes.take(PilotLocalDiagnosticReport.MAX_DISPLAYED_CODES), contentKeys.size)
++    }
++
++    // Separate domains and framing prevent a diagnostic code from becoming a production content_key.
++    private fun diagnosticHmac(vararg values: String): String {
++        val bytes = ByteArrayOutputStream()
++        DataOutputStream(bytes).use { out ->
++            values.forEach { value ->
++                val encoded = value.toByteArray(Charsets.UTF_8)
++                out.writeInt(encoded.size)
++                out.write(encoded)
++            }
++        }
++        return Mac.getInstance("HmacSHA256").run { init(key); doFinal(bytes.toByteArray()).hex() }
++    }
++
+     override fun toString() = "PilotCaptureContext(key=redacted)"
++}
++
++/** Display only. Never add this report to settings, the delivery journal or an API payload. */
++internal data class PilotLocalDiagnosticReport(
++    val challenge: String,
++    val profileBindingId: String,
++    val keyCode: String,
++    val contentCodes: List<String>,
++    val contentCount: Int
++) {
++    override fun toString() = "PilotLocalDiagnosticReport(redacted)"
++
++    companion object { const val MAX_DISPLAYED_CODES = 16 }
+ }
+ 
+ /** Explicit payload allowlist. Never send or serialize WatchProgress itself. */
+diff --git a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotStore.kt b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotStore.kt
+--- a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotStore.kt
++++ b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotStore.kt
+@@ -56,6 +56,17 @@
+         if (everActivated) require(endpoint == candidate) { "Le projet de ce pilote est figé." }
+     }
+ 
++    internal fun validateLocalDiagnostic(journal: PilotJournal): PilotScope {
++        require(mode == PilotMode.NAS_ONLY) { "Le contrôle local exige NAS_ONLY." }
++        val bound = requireNotNull(scope) { "Association locale absente." }
++        bound.validate()
++        require(session?.ownerId == bound.ownerId && deviceId == bound.deviceId) { "Compte ou appareil différent." }
++        require(journal.issue == null && (journal.epoch == bound.epoch || journal == PilotJournal())) {
++            "Le journal ne correspond pas à cette association."
++        }
++        return bound
++    }
++
+     override fun toString() = "PilotLocalSettings(mode=$mode, secrets=redacted)"
+ }
+ 
+@@ -210,6 +221,17 @@
+         catch (_: Exception) { null }
+     }
+ 
++    /** Uses the saved key, not edited form values. No save(), request permit or mode change. */
++    internal fun localDiagnostic(expected: PilotLocalSettings, challenge: String,
++                                 journal: PilotJournal): PilotLocalDiagnosticReport = synchronized(lock) {
++        checkAvailable()
++        require(state.value === expected) { "La configuration a changé pendant le contrôle." }
++        val bound = expected.validateLocalDiagnostic(journal)
++        val secret = Base64.decode(expected.hmacKeyBase64, Base64.DEFAULT)
++        try { PilotCaptureContext(bound, Long.MAX_VALUE, secret).localDiagnostic(challenge, journal) }
++        finally { secret.fill(0) }
++    }
++
+     fun replaceSession(expected: PilotAuthSession, next: PilotAuthSession) = synchronized(lock) {
+         require(state.value.session === expected && expected.ownerId == next.ownerId && expected.sessionId == next.sessionId) {
+             "La session du pilote a changé."
+diff --git a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotActivity.kt b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotActivity.kt
+--- a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotActivity.kt
++++ b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotActivity.kt
+@@ -26,6 +26,7 @@
+ import kotlinx.coroutines.flow.catch
+ import kotlinx.coroutines.flow.flatMapLatest
+ import kotlinx.coroutines.flow.flowOf
++import kotlinx.coroutines.flow.first
+ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.withContext
+ import java.util.UUID
+@@ -148,6 +149,48 @@
+         command("Désactiver · NAS seul") { operation { services.runtime().disable() } }
+         command("Réessayer l'envoi technique") { services.runtime().scheduleFlush() }
+         command("Déconnecter le compte Supabase") { operation { services.runtime().signOut() } }
++        label("Comparaison locale : utilise la clé enregistrée et les identifiants déjà capturés. NAS_ONLY est requis.")
++        val challenge = input("Défi public de comparaison · identique sur A et B", UUID.randomUUID().toString())
++            .apply { isSaveEnabled = false }
++        val diagnosticFeedback = label("Aucun contrôle local effectué.")
++        command("Afficher les codes de comparaison locale") {
++            val nonce = challenge.text.toString().trim()
++            operation(diagnosticFeedback, "Codes calculés localement. Aucun envoi demandé.",
++                runningMessage = "Calcul local des codes de comparaison…",
++                failureMessage = "Contrôle refusé : vérifie le défi commun, NAS_ONLY, le profil associé et la session locale.") {
++                val expected = services.store().settings.value
++                val bound = expected.validateLocalDiagnostic(PilotJournal())
++                val profiles = services.profiles()
++                require(profiles.activeProfileReady.value && profiles.activeProfileId.value == bound.localProfileId)
++                val queue = services.preferences().pilotDeliveryQueue()
++                require(queue.profileInstanceId(bound.localProfileId) == bound.localProfileInstanceId)
++                val journal = queue.observe(bound.localProfileId).first()
++                require(profiles.activeProfileReady.value && profiles.activeProfileId.value == bound.localProfileId &&
++                    queue.profileInstanceId(bound.localProfileId) == bound.localProfileInstanceId)
++                val report = services.store().localDiagnostic(expected, nonce, journal)
++                withContext(Dispatchers.Main) {
++                    val message = buildString {
++                        append("Défi public : ").append(report.challenge)
++                        append("\nProfil associé : ").append(report.profileBindingId)
++                        append("\n\nCode de clé :\n").append(report.keyCode)
++                        append("\n\nIdentifiants déjà capturés : ").append(report.contentCount)
++                        report.contentCodes.forEachIndexed { index, code ->
++                            append("\n\nCode de contenu ").append(index + 1).append(" :\n").append(code)
++                        }
++                        if (report.contentCount == 0) append("\nSeule la clé peut être comparée.")
++                        if (report.contentCount > report.contentCodes.size)
++                            append("\nAffichage limité : une absence de code commun ne permet pas de conclure.")
++                        append("\n\nCompare d'abord le défi, le profil et le code de clé sur les deux TV.")
++                        append("\nCes codes ne prouvent pas que le fichier physique est identique.")
++                    }
++                    AlertDialog.Builder(this@SupabaseProgressPilotActivity).setTitle("Comparaison locale")
++                        .setMessage(message).setPositiveButton("Fermer", null).create().also {
++                            it.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
++                            it.show()
++                        }
++                }
++            }
++        }
+         command("Retour") { finish() }
+ 
+         jobs.launch {
+@@ -175,12 +218,14 @@
+         }
+     }
+ 
+-    private fun operation(feedback: TextView? = null, success: String? = null, block: suspend () -> Unit) {
++    private fun operation(feedback: TextView? = null, success: String? = null,
++                          runningMessage: String = "Connexion Supabase en cours…", failureMessage: String? = null,
++                          block: suspend () -> Unit) {
+         if (busy) return
+         busy = true
+         commands.forEach { it.isEnabled = false }
+         if (feedback == null) status.text = "Traitement de la commande du pilote…"
+-        else showFeedback(feedback, "Connexion Supabase en cours…")
++        else showFeedback(feedback, runningMessage)
+         jobs.launch {
+             val failure = try { block(); null } catch (cancelled: CancellationException) {
+                 throw cancelled
+@@ -190,7 +235,7 @@
+                 busy = false
+                 commands.forEach { it.isEnabled = true }
+                 if (feedback != null) showFeedback(feedback,
+-                    if (failure == null) success ?: "Commande terminée." else pilotSignInFailureMessage(failure))
++                    if (failure == null) success ?: "Commande terminée." else failureMessage ?: pilotSignInFailureMessage(failure))
+                 else if (failure != null) status.text = if (failure is PilotHttpFailure) "Supabase HTTP ${failure.status}" else
+                     "Commande refusée. Vérifie la session, l'association et la validation de la migration."
+             }
+diff --git a/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressPilotTest.kt b/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressPilotTest.kt
+--- a/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressPilotTest.kt
++++ b/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressPilotTest.kt
+@@ -25,6 +25,84 @@
+     private val endpoint = PilotEndpoint("https://pilot-test.supabase.co", "sb_publishable_test")
+     private val session = PilotAuthSession(OWNER, SESSION, "supabase-test-token", "supabase-refresh", 10_000)
+ 
++    @Test fun localDiagnosticMatchesIndependentReferenceAndDoesNotExposeRawIdentity() {
++        val challenge = "00000000-0000-4000-8000-000000000099"
++        val journal = PilotJournal(epoch = EPOCH, fingerprints = mapOf("a".repeat(64) to "technical-fingerprint"))
++        val report = context.localDiagnostic(challenge, journal)
++        assertEquals("3bea42b4f6510c3a5ad457eed3f75071d206052f3d8919cc83556962e4f562eb", report.keyCode)
++        assertEquals(listOf("804cd69b05bc9dc112ef04ba294dee6a043234ed34c9a3437ca481876bb41a90"), report.contentCodes)
++        assertEquals(1, report.contentCount)
++        assertFalse(report.toString().contains(report.keyCode))
++        assertFalse(report.contentCodes.contains("a".repeat(64)))
++        assertEquals(mapOf("a".repeat(64) to "technical-fingerprint"), journal.fingerprints)
++        assertTrue(journal.pending.isEmpty())
++    }
++
++    @Test fun localDiagnosticSeparatesKeyMismatchFromContentOrProfileMismatch() {
++        val nonce = "00000000-0000-4000-8000-000000000099"
++        val journal = PilotJournal(epoch = EPOCH, fingerprints = mapOf("a".repeat(64) to "one"))
++        val original = context.localDiagnostic(nonce, journal)
++        val otherDevice = PilotCaptureContext(binding.copy(deviceId = DEVICE_B), 900, ByteArray(32) { it.toByte() })
++        assertEquals(original, otherDevice.localDiagnostic(nonce, journal))
++        val changedKey = PilotCaptureContext(binding, 100, ByteArray(32) { 9 }).localDiagnostic(nonce, journal)
++        assertNotEquals(original.keyCode, changedKey.keyCode)
++        val changedContent = context.localDiagnostic(nonce, journal.copy(fingerprints = mapOf("b".repeat(64) to "two")))
++        assertEquals(original.keyCode, changedContent.keyCode)
++        assertNotEquals(original.contentCodes, changedContent.contentCodes)
++        val changedProfile = PilotCaptureContext(binding.copy(profileBindingId = OTHER_OWNER), 100,
++            ByteArray(32) { it.toByte() }).localDiagnostic(nonce, journal)
++        assertEquals(original.keyCode, changedProfile.keyCode)
++        assertNotEquals(original.contentCodes, changedProfile.contentCodes)
++    }
++
++    @Test fun localDiagnosticRequiresSameChallengeAndIgnoresDeliveryUpdates() {
++        val nonce = "00000000-0000-4000-8000-000000000099"
++        val first = PilotJournal(epoch = EPOCH, fingerprints = linkedMapOf("a".repeat(64) to "one", "b".repeat(64) to "two"))
++        val second = first.copy(sequence = 99, fingerprints = linkedMapOf("b".repeat(64) to "changed", "a".repeat(64) to "changed"),
++            capturedTimes = mapOf("a".repeat(64) to 9999))
++        assertEquals(context.localDiagnostic(nonce, first), context.localDiagnostic(nonce, second))
++        val other = context.localDiagnostic("00000000-0000-4000-8000-000000000098", first)
++        assertNotEquals(context.localDiagnostic(nonce, first).keyCode, other.keyCode)
++        assertNotEquals(context.localDiagnostic(nonce, first).contentCodes, other.contentCodes)
++    }
++
++    @Test fun localDiagnosticRejectsInvalidChallengeForeignEpochAndCorruptedKeys() {
++        val nonce = "00000000-0000-4000-8000-000000000099"
++        assertTrue(runCatching { context.localDiagnostic("not-a-challenge", PilotJournal()) }.isFailure)
++        assertTrue(runCatching { context.localDiagnostic("AAAAAAAA-aaaa-4aaa-8aaa-aaaaaaaaaaaa", PilotJournal()) }.isFailure)
++        assertTrue(runCatching { context.localDiagnostic(nonce, PilotJournal(epoch = OTHER_OWNER)) }.isFailure)
++        assertTrue(runCatching { context.localDiagnostic(nonce, PilotJournal(issue = "OUTBOX_UNREADABLE")) }.isFailure)
++        assertTrue(runCatching { context.localDiagnostic(nonce,
++            PilotJournal(epoch = EPOCH, fingerprints = mapOf("private-path" to "never-display"))) }.isFailure)
++        assertTrue(runCatching { context.localDiagnostic(nonce, PilotJournal(sequence = 1)) }.isFailure)
++    }
++
++    @Test fun localDiagnosticAllowsEmptyJournalAndReportsTruncation() {
++        val nonce = "00000000-0000-4000-8000-000000000099"
++        val empty = context.localDiagnostic(nonce, PilotJournal())
++        assertEquals(0, empty.contentCount)
++        assertTrue(empty.contentCodes.isEmpty())
++        val keys = (1..20).associate { it.toString(16).padStart(64, '0') to "technical-fingerprint" }
++        val report = context.localDiagnostic(nonce, PilotJournal(epoch = EPOCH, fingerprints = keys))
++        assertEquals(20, report.contentCount)
++        assertEquals(PilotLocalDiagnosticReport.MAX_DISPLAYED_CODES, report.contentCodes.size)
++        assertEquals(report.contentCodes.sorted(), report.contentCodes)
++    }
++
++    @Test fun localDiagnosticRequiresNasOnlyAndCurrentLocalAccountAndDevice() {
++        val settings = PilotLocalSettings(deviceId = DEVICE_A, scope = binding, session = session)
++        val journal = PilotJournal(epoch = EPOCH)
++        assertEquals(PilotMode.NAS_ONLY, settings.mode)
++        assertEquals(binding, settings.validateLocalDiagnostic(journal))
++        assertTrue(runCatching { settings.copy(mode = PilotMode.NAS_WITH_SUPABASE_MIRROR).validateLocalDiagnostic(journal) }.isFailure)
++        assertTrue(runCatching { settings.copy(scope = null).validateLocalDiagnostic(journal) }.isFailure)
++        assertTrue(runCatching { settings.copy(session = null).validateLocalDiagnostic(journal) }.isFailure)
++        assertTrue(runCatching { settings.copy(deviceId = DEVICE_B).validateLocalDiagnostic(journal) }.isFailure)
++        assertTrue(runCatching { settings.copy(session = PilotAuthSession(OTHER_OWNER, SESSION, "test", "test", 10000))
++            .validateLocalDiagnostic(journal) }.isFailure)
++        assertTrue(runCatching { settings.validateLocalDiagnostic(PilotJournal(epoch = OTHER_OWNER)) }.isFailure)
++    }
++
+     @Test fun hmacMatchesIndependentLengthPrefixedReference() {
+         // Reference computed offline with Python hmac + struct.pack('>I', UTF-8 byte length).
+         assertEquals("8f795b82c910c22b5453211549a6af6189b2fb1798cb1f824b0ec9024e1f0694",

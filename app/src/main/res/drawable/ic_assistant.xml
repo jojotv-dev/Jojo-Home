@@ -1,0 +1,7 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+    <!-- Official Google Assistant four-dot mark, with transparent surround. -->
+    <path android:fillColor="#FF4285F4" android:pathData="M14.5,1a14.5,14.5 0,1 1,0 29,14.5,14.5 0,0 1,0,-29z"/>
+    <path android:fillColor="#FFEA4335" android:pathData="M36,19a6,6 0,1 1,0 12,6,6 0,0 1,0,-12z"/>
+    <path android:fillColor="#FF34A853" android:pathData="M45,14a3,3 0,1 1,0 6,3,3 0,0 1,0,-6z"/>
+    <path android:fillColor="#FFFBBC04" android:pathData="M36.5,32.5a7.5,7.5 0,1 1,0 15,7.5,7.5 0,0 1,0,-15z"/>
+</vector>

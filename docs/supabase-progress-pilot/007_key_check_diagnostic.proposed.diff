@@ -1,0 +1,150 @@
+--- a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotStore.kt
++++ b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotStore.kt
+@@ -32,6 +32,25 @@
+ import javax.inject.Inject
+ import javax.inject.Singleton
+ 
++/** Bounded local diagnostics: messages never contain identity values, hashes or keys. */
++internal enum class PilotKeyCheckIssue(val feedback: String) {
++    UNAVAILABLE("Le stockage local du pilote est indisponible."),
++    STATE_CHANGED("La configuration a changé pendant le contrôle. Relance le contrôle."),
++    MODE_ACTIVE("Désactive le miroir avant de contrôler la clé."),
++    SCOPE_MISSING("L'association locale du pilote est absente."),
++    SCOPE_INVALID("L'association locale du pilote est invalide."),
++    DEVICE_CHANGED("L'installation ne correspond plus à l'appareil associé."),
++    ACCOUNT_CHANGED("La session Supabase ne correspond pas au compte associé."),
++    NAS_UNAVAILABLE("L'identité du compte NAS n'est pas disponible localement."),
++    NAS_CHANGED("Le compte ou l'adresse NAS diffère de l'association du pilote."),
++    PROFILE_CHANGED("Le profil actif ne correspond pas au profil associé."),
++    PROFILE_RECREATED("Le profil associé a été supprimé ou recréé."),
++    KEY_INVALID("La clé HMAC locale est absente ou invalide.")
++}
++
++internal class PilotKeyCheckBlocked(val issue: PilotKeyCheckIssue) :
++    IllegalStateException("Contrôle HMAC bloqué [${issue.name}] : ${issue.feedback}")
++
+ data class PilotLocalSettings(
+     val deviceId: String = UUID.randomUUID().toString(),
+     val mode: PilotMode = PilotMode.NAS_ONLY,
+@@ -59,6 +78,18 @@
+         candidate.validate()
+         require(mode == PilotMode.NAS_ONLY) { "Désactive le pilote avant de te connecter." }
+         if (everActivated) require(endpoint == candidate) { "Le projet de ce pilote est figé." }
++    }
++
++    internal fun validateKeyScope(currentNasAuthority: String): PilotScope {
++        if (mode != PilotMode.NAS_ONLY) throw PilotKeyCheckBlocked(PilotKeyCheckIssue.MODE_ACTIVE)
++        val bound = scope ?: throw PilotKeyCheckBlocked(PilotKeyCheckIssue.SCOPE_MISSING)
++        try { bound.validate() }
++        catch (_: IllegalArgumentException) { throw PilotKeyCheckBlocked(PilotKeyCheckIssue.SCOPE_INVALID) }
++        if (deviceId != bound.deviceId) throw PilotKeyCheckBlocked(PilotKeyCheckIssue.DEVICE_CHANGED)
++        if (session?.ownerId != bound.ownerId) throw PilotKeyCheckBlocked(PilotKeyCheckIssue.ACCOUNT_CHANGED)
++        if (currentNasAuthority.isEmpty()) throw PilotKeyCheckBlocked(PilotKeyCheckIssue.NAS_UNAVAILABLE)
++        if (nasAuthorityDigest != currentNasAuthority) throw PilotKeyCheckBlocked(PilotKeyCheckIssue.NAS_CHANGED)
++        return bound
+     }
+ 
+     internal fun validateLocalDiagnostic(journal: PilotJournal): PilotScope {
+@@ -256,19 +287,18 @@
+ 
+     private fun keyContext(configured: PilotLocalSettings, candidate: String = configured.hmacKeyBase64): PilotCaptureContext {
+         val secret = try { Base64.decode(candidate.trim(), Base64.DEFAULT) }
+-            catch (_: Exception) { error("Clé HMAC invalide.") }
+-        try { return PilotCaptureContext(requireNotNull(configured.scope), Long.MAX_VALUE, secret) }
+-        finally { secret.fill(0) }
++            catch (_: IllegalArgumentException) { throw PilotKeyCheckBlocked(PilotKeyCheckIssue.KEY_INVALID) }
++        try {
++            if (secret.size != 32) throw PilotKeyCheckBlocked(PilotKeyCheckIssue.KEY_INVALID)
++            return PilotCaptureContext(requireNotNull(configured.scope), Long.MAX_VALUE, secret)
++        } finally { secret.fill(0) }
+     }
+ 
+     internal fun keyScope(expected: PilotLocalSettings): PilotScope = synchronized(lock) {
+-        checkAvailable()
+-        require(state.value === expected && expected.mode == PilotMode.NAS_ONLY)
+-        val bound = requireNotNull(expected.scope)
+-        bound.validate()
+-        require(expected.deviceId == bound.deviceId && expected.session?.ownerId == bound.ownerId &&
+-            currentNasAuthority.isNotEmpty() && expected.nasAuthorityDigest == currentNasAuthority)
+-        bound
++        try { checkAvailable() }
++        catch (_: IllegalStateException) { throw PilotKeyCheckBlocked(PilotKeyCheckIssue.UNAVAILABLE) }
++        if (state.value !== expected) throw PilotKeyCheckBlocked(PilotKeyCheckIssue.STATE_CHANGED)
++        expected.validateKeyScope(currentNasAuthority)
+     }
+ 
+     internal fun confirmKey(expected: PilotLocalSettings, journal: PilotJournal, challenge: String, reference: String) = synchronized(lock) {
+--- a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotRuntime.kt
++++ b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotRuntime.kt
+@@ -164,8 +164,10 @@
+         awaitLocalIdentity()
+         val expected = store.settings.value
+         val bound = store.keyScope(expected)
+-        require(profiles.activeProfileReady.value && profiles.activeProfileId.value == bound.localProfileId &&
+-            queue.profileInstanceId(bound.localProfileId) == bound.localProfileInstanceId)
++        if (!profiles.activeProfileReady.value || profiles.activeProfileId.value != bound.localProfileId)
++            throw PilotKeyCheckBlocked(PilotKeyCheckIssue.PROFILE_CHANGED)
++        if (queue.profileInstanceId(bound.localProfileId) != bound.localProfileInstanceId)
++            throw PilotKeyCheckBlocked(PilotKeyCheckIssue.PROFILE_RECREATED)
+         return bound
+     }
+ 
+--- a/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotActivity.kt
++++ b/app/src/main/java/com/jojotv/home/progresspilot/SupabaseProgressPilotActivity.kt
+@@ -330,6 +330,7 @@
+                 busy = false
+                 commands.forEach { it.isEnabled = true }
+                 val keyFailure = when (failure) {
++                    is PilotKeyCheckBlocked -> failure.message
+                     is PilotKeyMismatch -> "La clé ne correspond pas au code de référence de l’autre appareil. Activation bloquée."
+                     is PilotKeyCheckRequired -> "Vérifie la correspondance de la clé avant d’activer le miroir."
+                     else -> null
+--- a/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressPilotTest.kt
++++ b/app/src/test/java/com/jojotv/home/progresspilot/SupabaseProgressPilotTest.kt
+@@ -25,6 +25,46 @@
+     private val endpoint = PilotEndpoint("https://pilot-test.supabase.co", "sb_publishable_test")
+     private val session = PilotAuthSession(OWNER, SESSION, "supabase-test-token", "supabase-refresh", 10_000)
+ 
++    @Test fun keyScopeAcceptsOnlyTheEnrolledDeviceAccountAndNasAuthority() {
++        val settings = PilotLocalSettings(deviceId = DEVICE_A, scope = binding, session = session,
++            nasAuthorityDigest = "synthetic-nas-authority")
++        assertEquals(PilotMode.NAS_ONLY, settings.mode)
++        assertEquals(binding, settings.validateKeyScope("synthetic-nas-authority"))
++        val cases = listOf(
++            settings.copy(mode = PilotMode.NAS_WITH_SUPABASE_MIRROR) to PilotKeyCheckIssue.MODE_ACTIVE,
++            settings.copy(scope = null) to PilotKeyCheckIssue.SCOPE_MISSING,
++            settings.copy(scope = binding.copy(deviceA = DEVICE_B)) to PilotKeyCheckIssue.SCOPE_INVALID,
++            settings.copy(deviceId = DEVICE_B) to PilotKeyCheckIssue.DEVICE_CHANGED,
++            settings.copy(session = null) to PilotKeyCheckIssue.ACCOUNT_CHANGED,
++            settings.copy(session = PilotAuthSession(OTHER_OWNER, SESSION, "synthetic-token", "synthetic-refresh", 10_000)) to PilotKeyCheckIssue.ACCOUNT_CHANGED
++        )
++        for ((candidate, expected) in cases) {
++            val failure = runCatching { candidate.validateKeyScope("synthetic-nas-authority") }.exceptionOrNull()
++            assertTrue(failure is PilotKeyCheckBlocked)
++            assertEquals(expected, (failure as PilotKeyCheckBlocked).issue)
++        }
++    }
++
++    @Test fun missingNasIdentityAndChangedNasIdentityRemainSeparateBlockingConditions() {
++        val settings = PilotLocalSettings(deviceId = DEVICE_A, scope = binding, session = session,
++            nasAuthorityDigest = "synthetic-nas-authority")
++        val missing = runCatching { settings.validateKeyScope("") }.exceptionOrNull() as PilotKeyCheckBlocked
++        val changed = runCatching { settings.validateKeyScope("another-authority") }.exceptionOrNull() as PilotKeyCheckBlocked
++        assertEquals(PilotKeyCheckIssue.NAS_UNAVAILABLE, missing.issue)
++        assertEquals(PilotKeyCheckIssue.NAS_CHANGED, changed.issue)
++        assertEquals("synthetic-nas-authority", settings.nasAuthorityDigest)
++        assertEquals(PilotMode.NAS_ONLY, settings.mode)
++    }
++
++    @Test fun keyCheckDiagnosticsExposeOnlyBoundedReasons() {
++        for (issue in PilotKeyCheckIssue.entries) {
++            val message = PilotKeyCheckBlocked(issue).message.orEmpty()
++            assertTrue(message.contains("[${issue.name}]"))
++            for (sensitive in listOf(OWNER, DEVICE_A, PROFILE, "synthetic-nas-authority", session.accessToken))
++                assertFalse(message.contains(sensitive))
++        }
++    }
++
+     @Test fun pairingProofMatchesAcrossDevicesAndChangesWithKeyOwnerProfileOrPair() {
+         val nonce = "00000000-0000-4000-8000-000000000099"
+         val code = context.pairingKeyCode(nonce)

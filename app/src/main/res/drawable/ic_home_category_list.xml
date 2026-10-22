@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Video-box icon from the requested Series reference: three stacked
+         panels with a clear play cut-out in the large lower panel. -->
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M17,5h14c2.2,0 4,1.8 4,4v4H13V9c0,-2.2 1.8,-4 4,-4Z" />
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M13,14h22c2.8,0 5,2.2 5,5v4H8v-4c0,-2.8 2.2,-5 5,-5Z" />
+    <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+        android:pathData="M11,24h26c3.9,0 7,3.1 7,7v7c0,2.8 -2.2,5 -5,5H9c-2.8,0 -5,-2.2 -5,-5v-7c0,-3.9 3.1,-7 7,-7Z M20,29L32,35L20,41Z" />
+</vector>

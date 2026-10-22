@@ -1,0 +1,7 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+    <!-- Official Google Assistant microphone, transparent outside the mark. -->
+    <path android:fillColor="#FF4285F4" android:pathData="M24,3C19.6,3 16,6.6 16,11v15c0,4.4 3.6,8 8,8s8,-3.6 8,-8V11c0,-4.4 -3.6,-8 -8,-8z"/>
+    <path android:fillColor="#FFFBBC04" android:pathData="M4,25h7c0,5.5 2.6,10.4 6.7,13.4l-4.9,4.9C7.4,38.8 4,32.3 4,25z"/>
+    <path android:fillColor="#FFEA4335" android:pathData="M37,25h7c0,7.3 -3.4,13.8 -8.8,18.3l-4.9,-4.9C34.4,35.4 37,30.5 37,25zM11,25h5c0,4.4 3.6,8 8,8s8,-3.6 8,-8h5c0,7.4 -5.3,13.6 -12.3,14.8V45h-1.4v-5.2C16.3,38.6 11,32.4 11,25z"/>
+    <path android:fillColor="#FF34A853" android:pathData="M22,40h4v8h-4z"/>
+</vector>

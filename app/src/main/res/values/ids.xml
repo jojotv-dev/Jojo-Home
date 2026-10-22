@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="network_header_marker" type="id" />
+    <item name="player_view_aspect_mode_tag" type="id" />
+    <item name="player_view_subtitle_style_tag" type="id" />
+    <item name="libass_overlay_container_gl" type="id" />
+    <item name="libass_overlay_container" type="id" />
+    <item name="libass_overlay_bound_player" type="id" />
+    <item name="smb_photo_file_tag" type="id" />
+    <item name="smb_photo_thumbnail_status" type="id" />
+</resources>

@@ -1,0 +1,8 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Material Android TV : swap_vert, pour déplacer une section vers le haut ou le bas. -->
+    <path android:fillColor="#1B315B" android:pathData="M7.41,7.41L12,2.83L16.59,7.41L15.17,8.83L13,6.66L13,17L11,17L11,6.66L8.83,8.83ZM16.59,16.59L12,21.17L7.41,16.59L8.83,15.17L11,17.34L11,7L13,7L13,17.34L15.17,15.17Z" />
+</vector>

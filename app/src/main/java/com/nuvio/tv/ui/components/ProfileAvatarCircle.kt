@@ -1,0 +1,90 @@
+package com.nuvio.tv.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Text
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
+
+@Composable
+fun ProfileAvatarCircle(
+    name: String,
+    colorHex: String,
+    modifier: Modifier = Modifier,
+    size: Dp = 80.dp,
+    isSelected: Boolean = false,
+    selectedBorderColor: Color = Color.White,
+    avatarImageUrl: String? = null,
+    avatarEmoji: String? = null,
+    avatarId: String? = null
+) {
+    val avatarColor = runCatching { Color(android.graphics.Color.parseColor(colorHex)) }
+        .getOrDefault(Color(0xFF1E88E5))
+    val initial = name.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+    // Les images ne sont plus embarquées dans l'APK : un avatar bitmap provient
+    // uniquement du catalogue NAS. Emoji et initiale gardent la couleur du profil.
+    val hasImageAvatar = !avatarImageUrl.isNullOrBlank()
+    val isNasArtworkAvatar = avatarId?.startsWith("animal:") == true ||
+        avatarId?.startsWith("family:") == true
+
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(if (hasImageAvatar) Color.Transparent else avatarColor, CircleShape)
+            .then(
+                if (isSelected) {
+                    Modifier.border(3.dp, selectedBorderColor, CircleShape)
+                } else {
+                    Modifier
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        when {
+            !avatarImageUrl.isNullOrBlank() -> {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(avatarImageUrl)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = name,
+                modifier = Modifier
+                    .size(size)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+            }
+            !avatarEmoji.isNullOrBlank() -> {
+                Text(
+                    text = avatarEmoji,
+                    fontSize = (size.value * 0.47f).sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            !isNasArtworkAvatar -> {
+                Text(
+                    text = initial,
+                    color = Color.White,
+                    fontSize = (size.value * 0.4f).sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}

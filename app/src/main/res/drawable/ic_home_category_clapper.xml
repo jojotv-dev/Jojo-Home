@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Transparent cutouts remain visible under the category focus tint. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M6,23H44V39c0,3.3 -2.7,6 -6,6H12c-3.3,0 -6,-2.7 -6,-6Z M8,25H15L12,30H8Z M18,25H25L22,30H15Z M28,25H35L32,30H25Z M38,25H42V30H35Z" />
+    <group android:rotation="-17" android:pivotX="6" android:pivotY="23">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M10,11H40c2.2,0 4,1.8 4,4v4c0,2.2 -1.8,4 -4,4H10c-2.2,0 -4,-1.8 -4,-4v-4c0,-2.2 1.8,-4 4,-4Z M9,14H14L18,20H9Z M18,14H24L28,20H22Z M28,14H34L38,20H32Z M38,14H40c0.6,0 1,0.4 1,1v5Z" />
+    </group>
+</vector>

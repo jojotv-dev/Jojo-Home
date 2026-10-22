@@ -1,0 +1,16 @@
+<resources>
+    <style name="Theme.JojoHome" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:colorAccent">#C9D5FF</item>
+        <item name="android:navigationBarColor">#10182A</item>
+        <item name="android:windowActionModeOverlay">true</item>
+    </style>
+    <style name="Theme.JojoHome.Home" parent="Theme.JojoHome">
+        <!-- Restore Home directly instead of Fire OS's app-icon preview. -->
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+    <style name="Theme.JojoHome.IptvSettingsInput" parent="Theme.JojoHome">
+        <item name="android:colorAccent">#FFC107</item>
+    </style>
+</resources>

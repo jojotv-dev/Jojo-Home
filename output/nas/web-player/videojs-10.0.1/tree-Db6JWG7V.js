@@ -1,0 +1,1 @@
+import{r as e}from"./predicates-DfMqV1aQ.js";function t(t,n){let r=n;for(;r;){if(r===t||t.contains(r))return!0;let n=r.getRootNode();r=r.assignedSlot??r.parentElement??(e(n)?n.host:null)}return!1}export{t};

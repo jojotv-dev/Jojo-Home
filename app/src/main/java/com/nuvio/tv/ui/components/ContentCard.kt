@@ -1,0 +1,718 @@
+package com.nuvio.tv.ui.components
+
+import android.view.KeyEvent as AndroidKeyEvent
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import com.jojotv.home.R
+import androidx.tv.material3.Border
+import androidx.tv.material3.Card
+import androidx.tv.material3.CardDefaults
+import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.Icon
+import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Text
+import com.nuvio.tv.domain.model.ContentType
+import com.nuvio.tv.domain.model.MetaPreview
+import com.nuvio.tv.domain.model.PosterShape
+import com.nuvio.tv.ui.theme.NuvioColors
+import com.nuvio.tv.ui.theme.NuvioTheme
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.CachePolicy
+import coil3.request.crossfade
+import com.nuvio.tv.ui.util.recompositionHighlighter
+import com.nuvio.tv.ui.screens.home.LocalFastScrollActive
+import com.nuvio.tv.ui.theme.ThemeColors
+import com.nuvio.tv.ui.util.rememberLongPressKeyTracker
+import kotlinx.coroutines.delay
+
+private const val BACKDROP_ASPECT_RATIO = 16f / 9f
+private const val TRAILER_PREVIEW_REQUEST_FOCUS_DEBOUNCE_MS = 140L
+private val YEAR_REGEX = Regex("""\b(19|20)\d{2}\b""")
+private val YEAR_RANGE_REGEX = Regex("""^((19|20)\d{2})\s*[-–]\s*((19|20)\d{2})?$""")
+
+/** Content IDs with a persisted, non-completed resume for the active profile. */
+val LocalFavoriteInProgressContentIds = compositionLocalOf<Set<String>> { emptySet() }
+const val FAVORITE_IN_PROGRESS_BADGE_TEXT = "En cours"
+
+@Composable
+fun FavoriteInProgressBadge(
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(NuvioColors.Secondary.copy(alpha = 0.92f))
+            .padding(horizontal = 7.dp, vertical = 3.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.PlayArrow,
+            contentDescription = null,
+            tint = NuvioColors.OnSecondary,
+            modifier = Modifier.size(14.dp)
+        )
+        Text(
+            text = FAVORITE_IN_PROGRESS_BADGE_TEXT,
+            style = MaterialTheme.typography.labelSmall,
+            color = NuvioColors.OnSecondary,
+            maxLines = 1,
+            softWrap = false
+        )
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun ContentCard(
+    item: MetaPreview,
+    modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null,
+    posterCardStyle: PosterCardStyle = PosterCardDefaults.Style,
+    focusedPosterCardStyle: PosterCardStyle? = null,
+    showLabels: Boolean = true,
+    /** Extends the focus ring to the title block below the poster. */
+    focusIncludesLabel: Boolean = false,
+    placeholderShimmerOffsetState: State<Float>? = null,
+    focusedPosterBackdropExpandEnabled: Boolean = false,
+    focusedPosterBackdropExpandDelaySeconds: Int = 3,
+    focusedPosterBackdropTrailerEnabled: Boolean = false,
+    focusedPosterBackdropTrailerMuted: Boolean = true,
+    trailerPreviewUrl: String? = null,
+    trailerPreviewAudioUrl: String? = null,
+    onRequestTrailerPreview: (MetaPreview) -> Unit = {},
+    isWatched: Boolean = false,
+    onFocus: (MetaPreview) -> Unit = {},
+    onBackdropExpandedChanged: ((Boolean) -> Unit)? = null,
+    expandedDownFocusRequester: FocusRequester? = null,
+    expandedUpFocusRequester: FocusRequester? = null,
+    onLongPress: (() -> Unit)? = null,
+    onClick: () -> Unit = {}
+) {
+    val isFavoriteInProgress = item.isFavorite &&
+        (item.id in LocalFavoriteInProgressContentIds.current ||
+            item.playbackProgressId?.let { it in LocalFavoriteInProgressContentIds.current } == true)
+    var isFocused by remember { mutableStateOf(false) }
+    val resolvedPosterCardStyle = if (isFocused && focusedPosterCardStyle != null) {
+        focusedPosterCardStyle
+    } else {
+        posterCardStyle
+    }
+    val cardShape = remember(resolvedPosterCardStyle.cornerRadius) {
+        RoundedCornerShape(resolvedPosterCardStyle.cornerRadius)
+    }
+    val focusRingColor = NuvioColors.FocusRing
+    // A labelled card is one continuous surface: only its top edge belongs to
+    // the poster.  Rounding the poster's lower corners leaves a visible gap at
+    // the join with the title block.
+    val posterShape = remember(showLabels, resolvedPosterCardStyle.cornerRadius) {
+        if (showLabels) {
+            RoundedCornerShape(
+                topStart = resolvedPosterCardStyle.cornerRadius,
+                topEnd = resolvedPosterCardStyle.cornerRadius
+            )
+        } else {
+            cardShape
+        }
+    }
+    val baseCardWidth = when (item.posterShape) {
+        PosterShape.POSTER -> resolvedPosterCardStyle.width
+        PosterShape.LANDSCAPE -> 260.dp
+        PosterShape.SQUARE -> 170.dp
+    }
+    val baseCardHeight = when (item.posterShape) {
+        PosterShape.POSTER -> resolvedPosterCardStyle.height
+        PosterShape.LANDSCAPE -> 148.dp
+        PosterShape.SQUARE -> 170.dp
+    }
+    val expandedCardWidth = baseCardHeight * BACKDROP_ASPECT_RATIO
+    var longPressTriggered by remember { mutableStateOf(false) }
+    val longPressKeyTracker = rememberLongPressKeyTracker()
+    var interactionNonce by remember { mutableIntStateOf(0) }
+    var isBackdropExpanded by remember { mutableStateOf(false) }
+    var trailerFirstFrameRendered by remember(trailerPreviewUrl) { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    LaunchedEffect(isBackdropExpanded) {
+        onBackdropExpandedChanged?.invoke(isBackdropExpanded)
+    }
+    val needsFocusState = focusedPosterBackdropExpandEnabled || focusedPosterBackdropTrailerEnabled
+    val lastFocusedRef = remember { booleanArrayOf(false) }
+
+    val isPlaceholderItem = item.poster?.startsWith("placeholder://") == true
+
+    if (focusedPosterBackdropExpandEnabled && !isPlaceholderItem) {
+        LaunchedEffect(
+            focusedPosterBackdropExpandDelaySeconds,
+            isFocused,
+            interactionNonce,
+            item.id
+        ) {
+            if (!isFocused) {
+                isBackdropExpanded = false
+                return@LaunchedEffect
+            }
+
+            val delaySeconds = focusedPosterBackdropExpandDelaySeconds.coerceAtLeast(0)
+
+            isBackdropExpanded = false
+            // Minimum debounce so rapid D-pad scrolling doesn't expand every card.
+            val backdropDelayMs = if (delaySeconds == 0) 370L else delaySeconds * 1000L
+            delay(backdropDelayMs)
+            if (isFocused && focusedPosterBackdropExpandEnabled &&
+                lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            ) {
+                isBackdropExpanded = true
+            }
+        }
+    }
+
+    if (focusedPosterBackdropTrailerEnabled) {
+        // Trailer extraction is triggered by ModernHomeContent/ClassicHomeContent
+        // based on actual user focus, not by individual cards becoming visible.
+        // ContentCard only observes trailerPreviewUrl to start playback.
+    }
+
+    // Only pay the animation cost on the card that is actually focused/expanding.
+    // Unfocused cards snap directly to baseCardWidth — no animation state overhead.
+    val isFastScrollActive = LocalFastScrollActive.current.value
+    val animatedCardWidth = when {
+        !focusedPosterBackdropExpandEnabled -> baseCardWidth
+        !isFocused && !isBackdropExpanded -> baseCardWidth
+        else -> {
+            val targetCardWidth = if (isBackdropExpanded) expandedCardWidth else baseCardWidth
+            val width by animateDpAsState(targetValue = targetCardWidth, label = "contentCardWidth")
+            width
+        }
+    }
+    val metaTokens = if (isBackdropExpanded) {
+        remember(item.type, item.rawType, item.genres, item.releaseInfo, item.imdbRating, item.seasonCount) {
+            buildList {
+                add(
+                    item.apiType
+                        .replaceFirstChar { ch -> ch.uppercase() }
+                )
+                item.genres.firstOrNull()?.let { add(it) }
+                if ((item.type == ContentType.SERIES || item.apiType.equals("series", ignoreCase = true)) &&
+                    item.seasonCount != null
+                ) {
+                    add("${item.seasonCount} ${if (item.seasonCount == 1) "season" else "seasons"}")
+                }
+                item.releaseInfo
+                    ?.let { info ->
+                        val trimmed = info.trim()
+                        val rangeMatch = YEAR_RANGE_REGEX.find(trimmed)
+                        if (rangeMatch != null) {
+                            val startYear = rangeMatch.groupValues[1]
+                            val endYear = rangeMatch.groupValues[3]
+                            if (endYear.isNotBlank()) "$startYear–$endYear" else startYear
+                        } else {
+                            YEAR_REGEX.find(trimmed)?.value
+                        }
+                    }
+                    ?.let { add(it) }
+                item.imdbRating?.let { add(String.format(java.util.Locale.US, "%.1f", it)) }
+            }
+        }
+    } else {
+        emptyList()
+    }
+
+    Column(
+        modifier = modifier
+            .width(animatedCardWidth)
+            .then(
+                if (focusIncludesLabel && isFocused) {
+                    // border() paints inside the card's bounds, covering the outer
+                    // pixels of the poster.  Draw the focus ring outside instead:
+                    // the artwork keeps its full visible surface when focused.
+                    Modifier.drawBehind {
+                        val borderWidth = resolvedPosterCardStyle.focusedBorderWidth.toPx()
+                        val cornerRadius = resolvedPosterCardStyle.cornerRadius.toPx() + borderWidth / 2f
+                        drawRoundRect(
+                            color = focusRingColor,
+                            topLeft = androidx.compose.ui.geometry.Offset(-borderWidth, -borderWidth),
+                            size = androidx.compose.ui.geometry.Size(
+                                width = size.width + borderWidth * 2f,
+                                height = size.height + borderWidth * 2f
+                            ),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = borderWidth)
+                        )
+                    }
+                } else {
+                    Modifier
+                }
+            )
+            .recompositionHighlighter()
+    ) {
+        val context = LocalContext.current
+        val density = LocalDensity.current
+        // Keep decode size stable during width animation to avoid recreating requests/painters every frame.
+        val maxRequestCardWidth = if (focusedPosterBackdropExpandEnabled) {
+            maxOf(baseCardWidth, expandedCardWidth)
+        } else {
+            baseCardWidth
+        }
+        val requestWidthPx = remember(maxRequestCardWidth, density) {
+            with(density) { maxRequestCardWidth.roundToPx() }.coerceAtLeast(1)
+        }
+        val requestHeightPx = remember(baseCardHeight, density) {
+            with(density) { baseCardHeight.roundToPx() }.coerceAtLeast(1)
+        }
+
+        val imageUrl = if (focusedPosterBackdropExpandEnabled && isBackdropExpanded) {
+            item.backdropUrl ?: item.poster
+        } else {
+            item.poster
+        }
+        val imageContentScale = if (
+            item.rawType.equals("iptv_live", ignoreCase = true) || item.posterShape == PosterShape.POSTER
+        ) {
+            // Channel logos are often wide banners; cropping them as posters
+            // removes their left/right edges (for example Ligue 1).
+            ContentScale.Fit
+        } else {
+            ContentScale.Crop
+        }
+        val imageModel = remember(imageUrl, requestWidthPx, requestHeightPx) {
+            ImageRequest.Builder(context)
+                .data(imageUrl)
+                .crossfade(true)
+                .memoryCacheKey("${imageUrl}_${requestWidthPx}x${requestHeightPx}")
+                .size(width = requestWidthPx, height = requestHeightPx)
+                .build()
+        }
+        val logoRequestHeightPx = remember(density) {
+            with(density) { 48.dp.roundToPx() }
+        }
+        val logoModel = remember(item.logo, requestWidthPx, logoRequestHeightPx) {
+            item.logo?.let { logoUrl ->
+                ImageRequest.Builder(context)
+                    .data(logoUrl)
+                    .crossfade(false)
+                    .memoryCacheKey("${logoUrl}_${requestWidthPx}x${logoRequestHeightPx}")
+                    .size(width = requestWidthPx, height = logoRequestHeightPx)
+                    .build()
+            }
+        }
+        var logoLoadFailed by remember(item.logo) { mutableStateOf(false) }
+        val showExpandedLogo = !item.logo.isNullOrBlank() && !logoLoadFailed
+
+        val bgCardColor = NuvioColors.BackgroundCard
+        val backgroundPainter = remember(bgCardColor) { androidx.compose.ui.graphics.painter.ColorPainter(bgCardColor) }
+
+        Card(
+            onClick = {
+                if (longPressTriggered) {
+                    longPressTriggered = false
+                } else {
+                    onClick()
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { state ->
+                    val focusedNow = state.isFocused
+                    if (focusedNow != isFocused) {
+                        isFocused = focusedNow
+                    }
+                    if (needsFocusState) {
+                        if (focusedNow != lastFocusedRef[0]) {
+                            lastFocusedRef[0] = focusedNow
+                            if (focusedNow) {
+                                interactionNonce++
+                                onFocus(item)
+                            } else {
+                                isBackdropExpanded = false
+                            }
+                        }
+                    } else {
+                        if (focusedNow != lastFocusedRef[0]) {
+                            lastFocusedRef[0] = focusedNow
+                            if (focusedNow) onFocus(item)
+                        }
+                    }
+                }
+                .onPreviewKeyEvent { keyEvent ->
+                    val native = keyEvent.nativeKeyEvent
+                    if (native.action == AndroidKeyEvent.ACTION_DOWN) {
+                        if (focusedPosterBackdropExpandEnabled && isFocused && shouldResetBackdropTimer(native)) {
+                            interactionNonce++
+                        }
+                        if (onLongPress != null) {
+                            if (native.keyCode == AndroidKeyEvent.KEYCODE_MENU) {
+                                longPressTriggered = true
+                                onLongPress()
+                                return@onPreviewKeyEvent true
+                            }
+                        }
+                    }
+                    if (onLongPress != null &&
+                        longPressKeyTracker.handle(native, ::isSelectKey) {
+                            longPressTriggered = true
+                            onLongPress()
+                        }
+                    ) {
+                        if (native.action == AndroidKeyEvent.ACTION_UP) {
+                            longPressTriggered = false
+                        }
+                        return@onPreviewKeyEvent true
+                    }
+                    if (native.action == AndroidKeyEvent.ACTION_UP &&
+                        longPressTriggered &&
+                        (isSelectKey(native.keyCode) || native.keyCode == AndroidKeyEvent.KEYCODE_MENU)
+                    ) {
+                        longPressTriggered = false
+                        return@onPreviewKeyEvent true
+                    }
+                    false
+                }
+                .then(
+                    if (isBackdropExpanded && (expandedDownFocusRequester != null || expandedUpFocusRequester != null)) {
+                        Modifier.focusProperties {
+                            if (expandedDownFocusRequester != null) down = expandedDownFocusRequester
+                            if (expandedUpFocusRequester != null) up = expandedUpFocusRequester
+                        }
+                    } else Modifier
+                )
+                .then(
+                    if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier
+                ),
+            shape = CardDefaults.shape(shape = posterShape),
+            colors = CardDefaults.colors(
+                containerColor = Color.Transparent,
+                focusedContainerColor = Color.Transparent
+            ),
+            border = CardDefaults.border(
+                focusedBorder = Border(
+                    border = BorderStroke(
+                        resolvedPosterCardStyle.focusedBorderWidth,
+                        if (focusIncludesLabel) Color.Transparent else NuvioColors.FocusRing
+                    ),
+                    shape = cardShape
+                )
+            ),
+            scale = CardDefaults.scale(focusedScale = resolvedPosterCardStyle.focusedScale)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(baseCardHeight)
+                    .clip(posterShape)
+            ) {
+                val isPlaceholderItem = imageUrl?.startsWith("placeholder://") == true
+                if (isPlaceholderItem) {
+                    val effectivePlaceholderShimmerOffsetState =
+                        placeholderShimmerOffsetState ?: rememberPlaceholderShimmerOffsetState(
+                            label = "classicPlaceholderShimmer"
+                        )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .placeholderCardShimmer(
+                                shimmerOffsetState = effectivePlaceholderShimmerOffsetState,
+                                backgroundColor = NuvioColors.BackgroundCard
+                            )
+                    )
+                } else if (!imageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = imageModel,
+                        contentDescription = item.name,
+                        modifier = Modifier.fillMaxSize().clip(posterShape),
+                        placeholder = backgroundPainter,
+                        error = backgroundPainter,
+                        fallback = backgroundPainter,
+                        contentScale = imageContentScale
+                    )
+                } else {
+                    MonochromePosterPlaceholder()
+                }
+
+                val shouldPlayTrailerPreview = isBackdropExpanded &&
+                    focusedPosterBackdropTrailerEnabled &&
+                    isFocused &&
+                    trailerPreviewUrl != null
+
+                if (focusedPosterBackdropTrailerEnabled) {
+                    LaunchedEffect(shouldPlayTrailerPreview) {
+                        if (!shouldPlayTrailerPreview) {
+                            trailerFirstFrameRendered = false
+                        }
+                    }
+                }
+
+                // Only allocate animation state when trailer is actually playing.
+                val trailerCoverAlpha = if (shouldPlayTrailerPreview) {
+                    val alpha by animateFloatAsState(
+                        targetValue = if (!trailerFirstFrameRendered) 1f else 0f,
+                        animationSpec = tween(durationMillis = 250),
+                        label = "trailerCoverAlpha"
+                    )
+                    alpha
+                } else {
+                    0f
+                }
+
+                if (shouldPlayTrailerPreview) {
+                    TrailerPlayer(
+                        trailerUrl = trailerPreviewUrl,
+                        trailerAudioUrl = trailerPreviewAudioUrl,
+                        isPlaying = true,
+                        onEnded = {
+                            trailerFirstFrameRendered = false
+                            isBackdropExpanded = false
+                        },
+                        onFirstFrameRendered = {
+                            trailerFirstFrameRendered = true
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                        muted = focusedPosterBackdropTrailerMuted
+                    )
+                }
+
+                if (shouldPlayTrailerPreview && !imageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = imageModel,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = trailerCoverAlpha }
+                            .clip(posterShape),
+                        // Live channel artwork is a logo, not a poster. Keep the
+                        // complete mark visible in the trailer-cover layer too.
+                        contentScale = imageContentScale
+                    )
+                }
+
+                if (isBackdropExpanded) {
+                    val themeAccentColor = NuvioColors.Secondary
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth()
+                            .height(96.dp)
+                            .drawWithCache {
+                                val gradient = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        themeAccentColor.copy(alpha = 0.82f)
+                                    ),
+                                    startY = 0f,
+                                    endY = size.height
+                                )
+                                onDrawBehind { drawRect(gradient) }
+                            }
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+                            .fillMaxWidth(0.75f)
+                    ) {
+                        if (showExpandedLogo) {
+                            AsyncImage(
+                                model = logoModel,
+                                contentDescription = item.name,
+                                onError = { logoLoadFailed = true },
+                                modifier = Modifier
+                                    .height(48.dp)
+                                    .fillMaxWidth(),
+                                contentScale = ContentScale.Fit,
+                                alignment = Alignment.CenterStart
+                            )
+                        } else {
+                            Text(
+                                text = item.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color.White,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                if ((item.rawType == "iptv_movie" || item.rawType == "iptv_series" || item.rawType == "iptv_live") && item.isFavorite) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        tint = Color(0xFFFFD700),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(end = 8.dp, top = 8.dp)
+                            .zIndex(2f)
+                            .size(22.dp)
+                    )
+                }
+                if (isFavoriteInProgress) {
+                    FavoriteInProgressBadge(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
+                            .zIndex(3f)
+                    )
+                }
+                if (isWatched && !isFavoriteInProgress) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(end = 8.dp, top = 8.dp)
+                            .zIndex(2f)
+                            .size(21.dp)
+                            .shadow(10.dp, shape = CircleShape, spotColor = Color.Transparent)
+                            .background(NuvioColors.Secondary, CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            tint = if (NuvioColors.Secondary == ThemeColors.White.secondary) Color.Black else Color.White,
+                            contentDescription = stringResource(R.string.episodes_cd_watched),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // When backdrop expand is enabled, both the labels state and the
+        // expanded state share a single Column with a fixed minimum height
+        // so the row never shifts vertically during the expand transition.
+        if (showLabels) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        color = NuvioColors.Secondary.copy(alpha = 0.18f),
+                        shape = RoundedCornerShape(
+                            bottomStart = resolvedPosterCardStyle.cornerRadius,
+                            bottomEnd = resolvedPosterCardStyle.cornerRadius
+                        )
+                    )
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            ) {
+                if (isBackdropExpanded) {
+                    if (metaTokens.isNotEmpty()) {
+                        Text(
+                            text = metaTokens.joinToString("  •  "),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = NuvioTheme.extendedColors.textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    item.description?.takeIf { it.isNotBlank() }?.let { description ->
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = NuvioColors.TextPrimary,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                } else {
+                    Text(
+                        text = item.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = NuvioColors.TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = if (isFocused) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier
+                    )
+                    item.releaseInfo?.let { info ->
+                        Text(
+                            text = info,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = NuvioTheme.extendedColors.textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (focusedPosterBackdropExpandEnabled) {
+                        Spacer(modifier = Modifier.height(15.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun shouldResetBackdropTimer(nativeEvent: AndroidKeyEvent): Boolean {
+    val key = nativeEvent.keyCode
+    return when (key) {
+        AndroidKeyEvent.KEYCODE_DPAD_UP,
+        AndroidKeyEvent.KEYCODE_DPAD_DOWN,
+        AndroidKeyEvent.KEYCODE_DPAD_LEFT,
+        AndroidKeyEvent.KEYCODE_DPAD_RIGHT,
+        AndroidKeyEvent.KEYCODE_DPAD_CENTER,
+        AndroidKeyEvent.KEYCODE_ENTER,
+        AndroidKeyEvent.KEYCODE_NUMPAD_ENTER,
+        AndroidKeyEvent.KEYCODE_BACK -> true
+        else -> false
+    }
+}
+
+private fun isSelectKey(keyCode: Int): Boolean {
+    return keyCode == AndroidKeyEvent.KEYCODE_DPAD_CENTER ||
+        keyCode == AndroidKeyEvent.KEYCODE_ENTER ||
+        keyCode == AndroidKeyEvent.KEYCODE_NUMPAD_ENTER
+}
